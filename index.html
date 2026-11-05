@@ -154,6 +154,27 @@ main.animating #hint3d{opacity:0}
 .menu-pop{position:absolute;right:0;top:calc(100% + 6px);display:flex;flex-direction:column;min-width:150px;background:#fff;
   border:1px solid var(--line);border-radius:10px;padding:4px;box-shadow:0 10px 30px rgba(40,30,20,.14);z-index:20;animation:fadeIn .2s ease}
 .menu-pop .btn{text-align:left}
+/* ---------- 我的方案 ---------- */
+#plansDlg{border:1px solid var(--line);border-radius:14px;padding:0;width:min(460px,94vw);max-height:84vh;background:var(--panel);color:var(--ink);
+  box-shadow:0 20px 60px rgba(40,30,20,.25)}
+#plansDlg::backdrop{background:rgba(40,30,20,.3)}
+#plansDlg .dlg{display:flex;flex-direction:column;max-height:84vh}
+#plansDlg .dlg-head{display:flex;align-items:center;gap:8px;padding:12px 14px;border-bottom:1px solid var(--line)}
+#plansDlg .dlg-head b{font-size:15px;flex:1}
+#plansDlg .dlg-cur{padding:10px 14px 0;color:var(--muted)}
+#plansDlg .dlg-cur b{color:var(--ink)}
+#plansDlg .dlg-row{display:flex;flex-wrap:wrap;gap:6px;padding:10px 14px}
+#plansDlg .dlg-row .btn{border:1px solid var(--line);background:#fff}
+#plansDlg .dlg-row .btn.primary{border-color:var(--accent);background:var(--accent)}
+#planList{overflow:auto;border-top:1px solid var(--line);border-bottom:1px solid var(--line);min-height:60px}
+#planList .plan{display:flex;align-items:center;gap:4px;padding:8px 14px;border-bottom:1px solid #f0ebe2}
+#planList .plan:last-child{border-bottom:0}
+#planList .plan.cur{background:var(--accent-soft)}
+#planList .plan div{flex:1;min-width:0}
+#planList .plan b{display:block;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#planList .plan small{color:var(--muted)}
+#planList .plan .btn{padding:4px 7px}
+#planList .empty{padding:18px 14px;color:var(--muted);text-align:center}
 .range span{font-variant-numeric:tabular-nums;color:var(--ink)}
 /* ---------- 选中后的浮动工具条 ---------- */
 #fab{position:absolute;left:50%;bottom:16px;transform:translate(-50%,12px);display:flex;align-items:center;gap:4px;padding:5px;
@@ -284,11 +305,13 @@ main.drawer-panel #fab{opacity:0;visibility:hidden}
       <button class="btn chip" data-lang="en" title="English">EN</button>
     </div>
     <button class="btn" id="fullscreen" title="全屏 (Shift+F)" style="border:1px solid var(--line);background:#fff">⛶ 全屏</button>
+    <button class="btn" id="plansBtn" style="border:1px solid var(--line);background:#fff" data-en="📁 Plans">📁 我的方案</button>
     <details class="menu"><summary class="btn" data-en="File ▾">文件 ▾</summary>
       <div class="menu-pop">
+        <button class="btn" id="saveCur" data-en="Save plan">儲存方案</button>
         <button class="btn" id="exportPng" data-en="Export image">导出图片</button>
-        <button class="btn" id="exportJson" data-en="Export plan JSON">导出方案 JSON</button>
-        <button class="btn" id="importJson" data-en="Import plan">导入方案</button>
+        <button class="btn" id="exportJson" data-en="Save to iCloud / Files">存到 iCloud／檔案</button>
+        <button class="btn" id="importJson" data-en="Open from iCloud / Files">從 iCloud／檔案開啟</button>
         <button class="btn danger" id="reset" data-en="Reset to default">重置为默认方案</button>
       </div></details>
     <input type="file" id="fileIn" accept=".json,application/json" hidden>
@@ -341,12 +364,27 @@ main.drawer-panel #fab{opacity:0;visibility:hidden}
   </footer>
 </div>
 <div id="toast"></div>
+<dialog id="plansDlg"><div class="dlg">
+  <div class="dlg-head"><b data-en="My plans">我的方案</b><button class="btn" id="plansClose" aria-label="關閉">✕</button></div>
+  <div class="dlg-cur"><span data-en="Current:">目前：</span><b id="curName"></b></div>
+  <div class="dlg-row">
+    <button class="btn primary" id="pSave" data-en="Save">儲存</button>
+    <button class="btn" id="pSaveAs" data-en="Save as new">另存新方案</button>
+    <button class="btn" id="pNew" data-en="New empty plan">新的空白方案</button>
+  </div>
+  <div id="planList"></div>
+  <div class="dlg-row">
+    <button class="btn" id="pToFile" data-en="☁️ Save to iCloud">☁️ 存到 iCloud</button>
+    <button class="btn" id="pFromFile" data-en="☁️ Open from iCloud">☁️ 從 iCloud 開啟</button>
+  </div>
+  <p class="hint" style="margin:0" data-en="On iPhone / iPad: after “Save to iCloud”, choose “Save to Files” → iCloud Drive. Plans in the list are kept in this browser only; save to iCloud to back up or move between devices.">iPhone／iPad：按「存到 iCloud」後選「儲存到檔案」→ iCloud 雲碟。清單中的方案只存在這個瀏覽器裡，要備份或換裝置請存到 iCloud。</p>
+</div></dialog>
 
 <script>
 /* ======================= 多语言（中文 / English，默认中文） ======================= */
 const LANG_KEY = 'huxing-lang';
 const LANGS = ['zh', 'zht', 'en'];             // 简体 / 繁體（台湾用字）/ English
-let LANG = (() => { try { const l = localStorage.getItem(LANG_KEY); return LANGS.includes(l) ? l : 'zh'; } catch(e) { return 'zh'; } })();
+let LANG = (() => { try { const l = localStorage.getItem(LANG_KEY); return LANGS.includes(l) ? l : 'zht'; } catch(e) { return 'zht'; } })();
 // 简 → 繁：先按词替换一字多义的字，再逐字查表（表由 OpenCC s2tw 按本页用到的字生成）
 const S2T_PHRASES = [['布置','佈置'],['布局','佈局'],['台面','檯面'],['复制','複製']];
 const S2T = new Map(('与與两兩个個为為书書于於仅僅从從价價会會传傳体體余餘侧側倾傾储儲儿兒关關内內写寫净淨准準击擊则則刚剛删刪制製办辦动動势勢区區单單占佔卧臥卫衛厅廳历歷压壓厨廚双雙发發变變叶葉后後吗嗎听聽启啟哑啞围圍图圖圆圓场場坐座块塊垫墊墙牆处處备備复復头頭妆妝婴嬰实實宽寬对對导導层層屉屜属屬岛島带帶干乾并並库庫应應开開当當径徑态態总總悬懸懒懶户戶护護拟擬择擇挂掛挡擋挤擠损損换換据據摆擺摇搖撑撐数數无無时時显顯暂暫机機杂雜杆桿条條来來松鬆构構柜櫃标標栈棧栏欄样樣梁樑棱稜椭橢横橫橱櫥气氣没沒注註浅淺测測浏瀏游遊滚滾满滿灯燈灵靈点點热熱状狀独獨环環现現电電画畫监監盖蓋盘盤砖磚确確离離积積称稱竖豎筑築签籤类類约約级級线線结結绕繞绘繪给給统統继繼绿綠缀綴编編缝縫缩縮网網联聯脚腳获獲虚虛装裝见見视視览覽触觸计計认認让讓议議记記设設识識译譯该該语語请請读讀调調负負败敗质質贴貼赶趕转轉轮輪软軟轴軸轻輕载載较較辅輔辑輯边邊过過这這进進远遠适適选選邻鄰里裡针針钢鋼钮鈕铰鉸铺鋪销銷锁鎖键鍵镜鏡长長门門闭閉闲閒间間阅閱阳陽阴陰阶階随隨隐隱静靜页頁顶頂项項顺順颜顏飘飄飞飛马馬鸟鳥齐齊龙龍').match(/../gu).map(p => [...p]));
@@ -1471,13 +1509,101 @@ document.addEventListener('pointerdown', e => { const m = $('details.menu'); if 
 matchMedia('(max-width:1100px)').addEventListener('change', () => drawer(null));
 drawer(null);                                  // 恢复上次的面板收起状态
 $('#exportPng').onclick = exportPNG;
-$('#exportJson').onclick = () => download(tr('户型装修方案', 'floor-plan-design') + '.json', new Blob([JSON.stringify(state, null, 2)], {type:'application/json'}));
-$('#importJson').onclick = () => $('#fileIn').click();
+/* ======================= 我的方案（瀏覽器內紀錄）＋ iCloud 存取 ======================= */
+// 方案清單存在 localStorage；檔案格式 = state ＋ meta:{name, savedAt}，與原本的「导出方案 JSON」相容
+const PLANS = 'huxing-plans-v1', CUR = 'huxing-cur-plan';
+let plans = (() => { try { return JSON.parse(localStorage.getItem(PLANS)) || []; } catch(e) { return []; } })();
+let curPlan = (() => { try { return localStorage.getItem(CUR); } catch(e) { return null; } })();
+if (!plans.some(p => p.id === curPlan)) curPlan = null;
+function savePlans(){
+  try { localStorage.setItem(PLANS, JSON.stringify(plans)); curPlan ? localStorage.setItem(CUR, curPlan) : localStorage.removeItem(CUR); return true; }
+  catch(e) { toast(tr('瀏覽器儲存空間不足，請先存到 iCloud', 'Browser storage full, save to iCloud instead')); return false; }
+}
+const curName = () => plans.find(p => p.id === curPlan)?.name || tr('未命名方案', 'Untitled plan');
+const cleanState = () => { const s = JSON.parse(snap()); delete s.meta; return s; };
+const fmtTime = t => new Date(t).toLocaleString(LANG === 'en' ? 'en' : 'zh-TW', {month:'numeric', day:'numeric', hour:'2-digit', minute:'2-digit'});
+function askName(def){ const n = prompt(tr('方案名稱', 'Plan name'), def); return n && n.trim() ? n.trim().slice(0, 60) : null; }
+function storePlan(name, s, id){
+  const p = id && plans.find(p => p.id === id);
+  if (p) Object.assign(p, {name, state:s, updated:Date.now()});
+  else { id = uid(); plans.unshift({id, name, state:s, updated:Date.now()}); }
+  curPlan = id;
+  return savePlans();
+}
+function saveCurrent(){
+  if (!curPlan) return saveAsNew();
+  if (storePlan(curName(), cleanState(), curPlan)) toast(tr('已儲存「', 'Saved “') + curName() + tr('」', '”'));
+  renderPlans();
+}
+function saveAsNew(){
+  const n = askName(curPlan ? curName() + tr(' 複本', ' copy') : tr('我的方案 ', 'My plan ') + (plans.length + 1)); if (!n) return;
+  if (storePlan(n, cleanState())) toast(tr('已儲存「', 'Saved “') + n + tr('」', '”'));
+  renderPlans();
+}
+function loadState(s){ const b = snap(); state = fixState(JSON.parse(JSON.stringify(s))); delete state.meta; ui.sel = null; commit(b); renderAll(); }
+function openPlan(id){
+  const p = plans.find(p => p.id === id); if (!p) return;
+  loadState(p.state); curPlan = id; savePlans(); renderPlans();
+  $('#plansDlg').close(); toast(tr('已開啟「', 'Opened “') + p.name + tr('」', '”'));
+}
+// iPhone / iPad 用分享表單（選「儲存到檔案」→ iCloud 雲碟）；電腦上的 Chrome / Edge 用存檔對話框；其他瀏覽器直接下載
+async function saveToFiles(name, s){
+  const fname = name.replace(/[\\/:*?"<>|]/g, '_') + '.json';
+  const blob = new Blob([JSON.stringify({...s, meta:{name, savedAt:new Date().toISOString()}}, null, 2)], {type:'application/json'});
+  const file = new File([blob], fname, {type:'application/json'});
+  if (COARSE && navigator.canShare?.({files:[file]})) {
+    try { await navigator.share({files:[file]}); return; } catch(e) { if (e.name === 'AbortError') return; }
+  }
+  if (window.showSaveFilePicker) {
+    try {
+      const h = await showSaveFilePicker({suggestedName:fname, types:[{description:'JSON', accept:{'application/json':['.json']}}]});
+      const w = await h.createWritable(); await w.write(blob); await w.close(); toast(tr('已存檔', 'Saved')); return;
+    } catch(e) { if (e.name === 'AbortError') return; }
+  }
+  download(fname, blob);
+}
+function renderPlans(){
+  $('#curName').textContent = curName();
+  $('#planList').innerHTML = plans.length ? plans.map(p => `<div class="plan ${p.id === curPlan ? 'cur' : ''}" data-id="${p.id}">
+      <div><b>${esc(p.name)}</b><small>${fmtTime(p.updated)}${p.id === curPlan ? tr(' · 目前', ' · current') : ''}</small></div>
+      <button class="btn" data-act="open">${tr('開啟', 'Open')}</button>
+      <button class="btn" data-act="rename" title="${tr('改名', 'Rename')}">✎</button>
+      <button class="btn" data-act="file" title="${tr('存到 iCloud', 'Save to iCloud')}">☁️</button>
+      <button class="btn danger" data-act="del" title="${tr('刪除', 'Delete')}">🗑</button>
+    </div>`).join('')
+    : `<div class="empty">${tr('還沒有儲存的方案，按「儲存」建立第一個', 'No saved plans yet. Tap “Save” to create one')}</div>`;
+}
+$('#planList').onclick = e => {
+  const act = e.target.closest('[data-act]')?.dataset.act, id = e.target.closest('.plan')?.dataset.id, p = plans.find(p => p.id === id);
+  if (!act || !p) return;
+  if (act === 'open') openPlan(id);
+  else if (act === 'rename') { const n = askName(p.name); if (n) { p.name = n; savePlans(); renderPlans(); } }
+  else if (act === 'file') saveToFiles(p.name, p.state);
+  else if (act === 'del' && confirm(tr('刪除「', 'Delete “') + p.name + tr('」？無法復原', '”? This cannot be undone'))) {
+    plans = plans.filter(x => x !== p); if (curPlan === id) curPlan = null; savePlans(); renderPlans();
+  }
+};
+$('#plansBtn').onclick = () => { $('details.menu').open = false; renderPlans(); $('#plansDlg').showModal(); };
+$('#plansClose').onclick = () => $('#plansDlg').close();
+$('#plansDlg').onclick = e => { if (e.target === e.currentTarget) e.currentTarget.close(); };   // 點背景關閉
+$('#pSave').onclick = $('#saveCur').onclick = () => { $('details.menu').open = false; saveCurrent(); };
+$('#pSaveAs').onclick = saveAsNew;
+$('#pNew').onclick = () => {
+  const n = askName(tr('我的方案 ', 'My plan ') + (plans.length + 1)); if (!n) return;
+  loadState({...defaultState(), furniture:[]}); storePlan(n, cleanState()); renderPlans();
+  $('#plansDlg').close(); toast(tr('已建立「', 'Created “') + n + tr('」', '”'));
+};
+$('#pToFile').onclick = $('#exportJson').onclick = () => { $('details.menu').open = false; saveToFiles(curName(), cleanState()); };
+$('#pFromFile').onclick = $('#importJson').onclick = () => $('#fileIn').click();
 $('#fileIn').onchange = e => {
   const file = e.target.files[0]; if (!file) return;
   file.text().then(txt => {
-    try { const s = JSON.parse(txt); if (!Array.isArray(s.furniture)) throw 0; const b = snap(); state = fixState(s); ui.sel = null; commit(b); renderAll(); toast(tr('方案已导入', 'Plan imported')); }
-    catch(err){ toast(tr('文件格式不正确', 'Invalid file format')); }
+    let s; try { s = JSON.parse(txt); if (!Array.isArray(s.furniture)) throw 0; } catch(err) { return toast(tr('文件格式不正确', 'Invalid file format')); }
+    const name = s.meta?.name || file.name.replace(/\.json$/i, '');
+    loadState(s);
+    storePlan(name, cleanState(), plans.find(p => p.name === name)?.id);   // 同名方案直接更新，否則加入清單
+    renderPlans(); if ($('#plansDlg').open) $('#plansDlg').close();
+    toast(tr('已開啟「', 'Opened “') + name + tr('」', '”'));
   });
   e.target.value = '';
 };
@@ -1495,7 +1621,7 @@ new ResizeObserver(() => {
 function setLang(l){
   LANG = l; try { localStorage.setItem(LANG_KEY, l); } catch(e) {}
   applyStaticLang(); syncFullscreen(); syncModeHint(); syncPaneBtns();
-  buildLib(); renderOpenings(); renderAll();
+  buildLib(); renderOpenings(); renderAll(); renderPlans();
   $('#tip').textContent = TIPS()[viewMode];
   window.View3D?.relang();
 }
