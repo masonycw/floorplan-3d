@@ -155,26 +155,34 @@ main.animating #hint3d{opacity:0}
   border:1px solid var(--line);border-radius:10px;padding:4px;box-shadow:0 10px 30px rgba(40,30,20,.14);z-index:20;animation:fadeIn .2s ease}
 .menu-pop .btn{text-align:left}
 /* ---------- 我的方案 ---------- */
-#plansDlg{border:1px solid var(--line);border-radius:14px;padding:0;width:min(460px,94vw);max-height:84vh;background:var(--panel);color:var(--ink);
+.dlgbox{border:1px solid var(--line);border-radius:14px;padding:0;width:min(460px,94vw);max-height:84vh;background:var(--panel);color:var(--ink);
   box-shadow:0 20px 60px rgba(40,30,20,.25)}
-#plansDlg::backdrop{background:rgba(40,30,20,.3)}
-#plansDlg .dlg{display:flex;flex-direction:column;max-height:84vh}
-#plansDlg .dlg-head{display:flex;align-items:center;gap:8px;padding:12px 14px;border-bottom:1px solid var(--line)}
-#plansDlg .dlg-head b{font-size:15px;flex:1}
-#plansDlg .dlg-cur{padding:10px 14px 0;color:var(--muted)}
-#plansDlg .dlg-cur b{color:var(--ink)}
-#plansDlg .dlg-row{display:flex;flex-wrap:wrap;gap:6px;padding:10px 14px}
-#plansDlg .dlg-row .btn{border:1px solid var(--line);background:#fff}
-#plansDlg .dlg-row .btn.primary{border-color:var(--accent);background:var(--accent)}
-#planList{overflow:auto;border-top:1px solid var(--line);border-bottom:1px solid var(--line);min-height:60px}
-#planList .plan{display:flex;align-items:center;gap:4px;padding:8px 14px;border-bottom:1px solid #f0ebe2}
-#planList .plan:last-child{border-bottom:0}
-#planList .plan.cur{background:var(--accent-soft)}
-#planList .plan div{flex:1;min-width:0}
-#planList .plan b{display:block;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-#planList .plan small{color:var(--muted)}
-#planList .plan .btn{padding:4px 7px}
-#planList .empty{padding:18px 14px;color:var(--muted);text-align:center}
+.dlgbox::backdrop{background:rgba(40,30,20,.3)}
+.dlgbox .dlg{display:flex;flex-direction:column;max-height:84vh}
+.dlgbox .dlg-head{display:flex;align-items:center;gap:8px;padding:12px 14px;border-bottom:1px solid var(--line)}
+.dlgbox .dlg-head b{font-size:15px;flex:1}
+.dlgbox .dlg-cur{padding:10px 14px 0;color:var(--muted)}
+.dlgbox .dlg-cur b{color:var(--ink)}
+.dlgbox .dlg-row{display:flex;flex-wrap:wrap;gap:6px;padding:10px 14px}
+.dlgbox .dlg-row .btn{border:1px solid var(--line);background:#fff}
+.dlgbox .dlg-row .btn.primary{border-color:var(--accent);background:var(--accent)}
+.plist{overflow:auto;border-top:1px solid var(--line);border-bottom:1px solid var(--line);min-height:60px}
+.plist .plan{display:flex;align-items:center;gap:4px;padding:8px 14px;border-bottom:1px solid #f0ebe2}
+.plist .plan:last-child{border-bottom:0}
+.plist .plan.cur{background:var(--accent-soft)}
+.plist .plan div{flex:1;min-width:0}
+.plist .plan b{display:block;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.plist .plan small{color:var(--muted)}
+.plist .plan .btn{padding:4px 7px}
+.plist .empty{padding:18px 14px;color:var(--muted);text-align:center}
+.plist h5{margin:0;padding:8px 14px 4px;font-size:12px;color:var(--muted);font-weight:600}
+.setup-opts{display:flex;flex-direction:column;gap:8px;padding:12px 14px}
+.setup-opts .opt{display:flex;flex-direction:column;align-items:flex-start;gap:2px;text-align:left;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:#fff;cursor:pointer}
+.setup-opts .opt:hover{border-color:var(--accent)}
+.setup-opts .opt.on{border-color:var(--accent);background:var(--accent-soft)}
+.setup-opts .opt small{color:var(--muted);font-size:12px;line-height:1.45}
+#dirResume{position:fixed;left:12px;bottom:40px;z-index:30;box-shadow:0 6px 20px rgba(40,30,20,.2)}
+#saveStatus{color:var(--muted)}
 .range span{font-variant-numeric:tabular-nums;color:var(--ink)}
 /* ---------- 选中后的浮动工具条 ---------- */
 #fab{position:absolute;left:50%;bottom:16px;transform:translate(-50%,12px);display:flex;align-items:center;gap:4px;padding:5px;
@@ -310,7 +318,7 @@ main.drawer-panel #fab{opacity:0;visibility:hidden}
     <button class="btn" id="plansBtn" style="border:1px solid var(--line);background:#fff" data-en="📁 Plans">📁 我的方案</button>
     <details class="menu"><summary class="btn" data-en="File ▾">文件 ▾</summary>
       <div class="menu-pop">
-        <button class="btn" id="saveCur" data-en="Save plan">儲存方案</button>
+        <button class="btn" id="saveCur" data-en="Save version (⌘S)">存檔（確定版本 ⌘S）</button>
         <button class="btn" id="importScan" data-en="📐 Import room scan (USDZ)">📐 匯入房間掃描（USDZ）</button>
         <button class="btn" id="exportPng" data-en="Export image">导出图片</button>
         <button class="btn" id="exportJson" data-en="Save to iCloud / Files">存到 iCloud／檔案</button>
@@ -364,27 +372,41 @@ main.drawer-panel #fab{opacity:0;visibility:hidden}
     <span class="only2d">X <b id="cx">—</b></span><span class="only2d">Y <b id="cy">—</b></span>
     <span class="only2d"><span data-en="Scale">当前比例</span> <b id="ratio">—</b></span>
     <span id="hover" class="only2d"></span>
+    <span id="saveStatus"></span>
     <span class="spacer"></span>
     <span id="tip"></span>
   </footer>
 </div>
 <div id="toast"></div>
-<dialog id="plansDlg"><div class="dlg">
+<dialog id="plansDlg" class="dlgbox"><div class="dlg">
   <div class="dlg-head"><b data-en="My plans">我的方案</b><button class="btn" id="plansClose" aria-label="關閉">✕</button></div>
   <div class="dlg-cur"><span data-en="Current:">目前：</span><b id="curName"></b></div>
   <div class="dlg-row">
-    <button class="btn primary" id="pSave" data-en="Save">儲存</button>
+    <button class="btn primary" id="pSave" data-en="Save version">存檔</button>
     <button class="btn" id="pSaveAs" data-en="Save as new">另存新方案</button>
     <button class="btn" id="pNew" data-en="New empty plan">新的空白方案</button>
     <button class="btn" id="pScan" data-en="📐 Import room scan">📐 匯入房間掃描</button>
   </div>
-  <div id="planList"></div>
+  <div id="verList" class="plist"></div>
+  <div id="planList" class="plist"></div>
   <div class="dlg-row">
     <button class="btn" id="pToFile" data-en="☁️ Save to iCloud">☁️ 存到 iCloud</button>
     <button class="btn" id="pFromFile" data-en="☁️ Open from iCloud">☁️ 從 iCloud 開啟</button>
+    <button class="btn" id="pSetup" data-en="⚙️ Autosave settings">⚙️ 暫存設定</button>
   </div>
-  <p class="hint" style="margin:0" data-en="On iPhone / iPad: after “Save to iCloud”, choose “Save to Files” → iCloud Drive. Plans in the list are kept in this browser only; save to iCloud to back up or move between devices.">iPhone／iPad：按「存到 iCloud」後選「儲存到檔案」→ iCloud 雲碟。清單中的方案只存在這個瀏覽器裡，要備份或換裝置請存到 iCloud。</p>
+  <p class="hint" style="margin:0" id="modeHintTxt"></p>
 </div></dialog>
+<dialog id="setupDlg" class="dlgbox"><div class="dlg">
+  <div class="dlg-head"><b data-en="Autosave settings">自動暫存設定</b><button class="btn" id="setupClose" aria-label="關閉">✕</button></div>
+  <p class="hint" style="margin:0;padding:12px 14px 0;color:var(--ink);font-size:13px" data-en="Every change is autosaved. “Save” keeps a confirmed version you can restore any time. Choose where to keep them (only once):">每次修改都會自動暫存，不怕忘記存。按「存檔」會另外保存一個確定的版本，之後隨時可以還原。請選擇存放位置（只要選一次）：</p>
+  <div class="setup-opts">
+    <button class="opt" data-mode="folder"><b data-en="📁 Choose a folder">📁 選一個資料夾</b><small data-en="Pick a folder in iCloud Drive. Autosaves and saved versions are written there automatically (Chrome / Edge on a computer).">建議選 iCloud 雲碟裡的資料夾。自動暫存和存檔版本都會直接寫進去（電腦版 Chrome／Edge）</small></button>
+    <button class="opt" data-mode="share"><b data-en="☁️ Also save to iCloud on “Save”">☁️ 存檔時同時存到 iCloud</b><small data-en="Autosaves stay on this device. Each “Save” opens “Save to Files” so you can pick iCloud Drive.">自動暫存在這台裝置；每次按「存檔」會跳出「儲存到檔案」，選 iCloud 雲碟</small></button>
+    <button class="opt" data-mode="local"><b data-en="📱 This device only">📱 只存在這台裝置</b><small data-en="Simplest. You can still back up with “Save to iCloud” any time.">最簡單；之後還是可以隨時手動「存到 iCloud」備份</small></button>
+  </div>
+  <p class="hint" style="margin:0" id="setupNote"></p>
+</div></dialog>
+<button class="btn primary" id="dirResume" hidden></button>
 
 <script>
 /* ======================= 多语言（中文 / English，默认中文） ======================= */
@@ -640,7 +662,7 @@ const ui = {tool:'select', sel:null, mA:null, mCur:null,
 let view = {x0:0, y0:0, s:.06};
 const undoStack = [], redoStack = [];
 
-function save(){ try { localStorage.setItem(STORE, JSON.stringify(state)); } catch(e) {} }
+function save(){ try { localStorage.setItem(STORE, JSON.stringify(state)); } catch(e) {} scheduleAutosave(); }
 const snap = () => JSON.stringify(state);
 function commit(before){ undoStack.push(before); if (undoStack.length > 150) undoStack.shift(); redoStack.length = 0; save(); }
 function mutate(fn){ const b = snap(); fn(); commit(b); renderAll(); }
@@ -1391,6 +1413,7 @@ document.addEventListener('keydown', e => {
   if (mod && k === 'z'){ e.preventDefault(); e.shiftKey ? redo() : undo(); return; }
   if (mod && k === 'y'){ e.preventDefault(); redo(); return; }
   if (mod && k === 'd'){ e.preventDefault(); duplicateSel(); return; }
+  if (mod && k === 's'){ e.preventDefault(); saveCurrent(); return; }
   if (mod) return;
   if (k === '[' || k === ']'){ drawer(k === '[' ? 'lib' : 'panel'); return; }
   if (k === 'f' && e.shiftKey){ toggleFullscreen(); return; }
@@ -1752,10 +1775,14 @@ async function importScan(file){
   toast(tr(`已匯入：牆 ${L.walls.length}、門 ${L.doors.length + L.slides.length}、窗 ${L.wins.length}${withF ? `、家具 ${n}` : ''}`, `Imported: ${L.walls.length} walls, ${L.doors.length + L.slides.length} doors, ${L.wins.length} windows${withF ? `, ${n} furniture` : ''}`));
 }
 
-/* ======================= 我的方案（瀏覽器內紀錄）＋ iCloud 存取 ======================= */
+/* ======================= 我的方案：自動暫存 ＋ 存檔版本 ＋ iCloud ======================= */
+// 每個方案 = 工作中的內容（state，每次修改自動暫存）＋ 按「存檔」留下的確定版本（versions，最新在前）
 // 方案清單存在 localStorage；檔案格式 = state ＋ meta:{name, savedAt}，與原本的「导出方案 JSON」相容
-const PLANS = 'huxing-plans-v1', CUR = 'huxing-cur-plan';
+const PLANS = 'huxing-plans-v1', CUR = 'huxing-cur-plan', SAVE_MODE = 'huxing-save-mode', MAX_VERSIONS = 20;
 let plans = (() => { try { return JSON.parse(localStorage.getItem(PLANS)) || []; } catch(e) { return []; } })();
+plans.forEach(p => p.versions ||= [{t:p.updated, state:p.state}]);   // 舊資料：之前按「儲存」的就當成確定版本
+// 存放位置：folder = 選定的資料夾（自動寫入）；share = 存檔時跳出「儲存到檔案」；local = 只在這台裝置；null = 還沒設定
+let saveMode = (() => { try { return localStorage.getItem(SAVE_MODE); } catch(e) { return null; } })();
 let curPlan = (() => { try { return localStorage.getItem(CUR); } catch(e) { return null; } })();
 if (!plans.some(p => p.id === curPlan)) curPlan = null;
 function savePlans(){
@@ -1769,20 +1796,86 @@ function askName(def){ const n = prompt(tr('方案名稱', 'Plan name'), def); r
 function storePlan(name, s, id){
   const p = id && plans.find(p => p.id === id);
   if (p) Object.assign(p, {name, state:s, updated:Date.now()});
-  else { id = uid(); plans.unshift({id, name, state:s, updated:Date.now()}); }
+  else { id = uid(); plans.unshift({id, name, state:s, updated:Date.now(), versions:[]}); }
   curPlan = id;
   return savePlans();
 }
-function saveCurrent(){
-  if (!curPlan) return saveAsNew();
-  if (storePlan(curName(), cleanState(), curPlan)) toast(tr('已儲存「', 'Saved “') + curName() + tr('」', '”'));
-  renderPlans();
+const safeName = n => n.replace(/[\\/:*?"<>|]/g, '_');
+const stamp = () => new Date().toLocaleString('sv').slice(0, 16).replace(':', '.');   // 2026-11-06 14.30
+const withMeta = (name, s) => ({...s, meta:{name, savedAt:new Date().toISOString()}});
+// 存檔 = 留下一個確定版本；依設定同時寫進資料夾，或跳出「儲存到檔案」
+async function saveCurrent(){
+  if (!curPlan){ const n = askName(tr('我的方案 ', 'My plan ') + (plans.length + 1)); if (!n) return; storePlan(n, cleanState()); }
+  else storePlan(curName(), cleanState(), curPlan);
+  const p = plans.find(p => p.id === curPlan);
+  p.versions.unshift({t:Date.now(), state:p.state}); p.versions.length = Math.min(p.versions.length, MAX_VERSIONS);
+  if (!savePlans()) return;
+  clearTimeout(autoT); renderPlans(); setStatus(tr('已存檔 ', 'Saved ') + hhmm());
+  const n = p.versions.length, fname = `${safeName(p.name)} ${stamp()}`;
+  if (saveMode === 'share') return saveToFiles(fname, p.state);   // 不能先 await，否則 iOS 不讓跳分享表單
+  if (saveMode === 'folder' && await folderWrite(fname + '.json', withMeta(p.name, p.state))) return toast(tr(`已存檔（第 ${n} 版），並寫入資料夾`, `Saved version ${n} to the folder`));
+  toast(tr(`已存檔「${p.name}」（第 ${n} 版）`, `Saved “${p.name}” (version ${n})`));
 }
 function saveAsNew(){
   const n = askName(curPlan ? curName() + tr(' 複本', ' copy') : tr('我的方案 ', 'My plan ') + (plans.length + 1)); if (!n) return;
-  if (storePlan(n, cleanState())) toast(tr('已儲存「', 'Saved “') + n + tr('」', '”'));
-  renderPlans();
+  storePlan(n, cleanState()); saveCurrent();
 }
+/* ---------- 自動暫存：停手 1.2 秒後寫回目前方案（和選定的資料夾） ---------- */
+var autoT;   // var：save() 可能在這段執行前就被呼叫
+const hhmm = () => new Date().toLocaleTimeString('zh-TW', {hour:'2-digit', minute:'2-digit', hour12:false});
+const setStatus = t => $('#saveStatus').textContent = t;
+function scheduleAutosave(){ clearTimeout(autoT); autoT = setTimeout(autosave, 1200); }
+async function autosave(){
+  const p = plans.find(p => p.id === curPlan);
+  if (p){ p.state = cleanState(); p.updated = Date.now(); if (!savePlans()) return; }
+  const ok = saveMode !== 'folder' || await folderWrite(`${safeName(curName())}（自動暫存）.json`, withMeta(curName(), cleanState()));
+  setStatus(ok ? tr('已自動暫存 ', 'Autosaved ') + hhmm() + (p ? '' : tr('（未命名，按存檔取名）', ' (untitled)')) : tr('只暫存在這台裝置', 'Autosaved on this device only'));
+}
+/* ---------- 資料夾：電腦版 Chrome / Edge 可以選一次資料夾，之後直接寫檔；權限每次開網頁要點一下恢復 ---------- */
+const idb = (mode, fn) => new Promise((res, rej) => {
+  const r = indexedDB.open('huxing', 1);
+  r.onupgradeneeded = () => r.result.createObjectStore('kv');
+  r.onsuccess = () => { const tx = r.result.transaction('kv', mode), q = fn(tx.objectStore('kv')); tx.oncomplete = () => res(q.result); tx.onerror = () => rej(tx.error); };
+  r.onerror = () => rej(r.error);
+});
+let dirH = null, dirOK = false;
+async function folderWrite(fname, obj){
+  try {
+    dirH ||= await idb('readonly', s => s.get('dir'));
+    if (!dirH) return false;
+    if (!dirOK && (dirOK = await dirH.queryPermission({mode:'readwrite'}) === 'granted') === false){
+      const b = $('#dirResume'); b.textContent = tr(`📁 點一下，繼續自動存到「${dirH.name}」`, `📁 Click to keep autosaving to “${dirH.name}”`); b.hidden = false; return false;
+    }
+    const w = await (await dirH.getFileHandle(fname, {create:true})).createWritable();
+    await w.write(JSON.stringify(obj, null, 2)); await w.close(); return true;
+  } catch(e) { dirOK = false; return false; }
+}
+$('#dirResume').onclick = async () => {
+  if (await dirH.requestPermission({mode:'readwrite'}) !== 'granted') return;
+  dirOK = true; $('#dirResume').hidden = true; autosave();
+};
+const MODE_TXT = () => ({folder:tr(`自動暫存與存檔版本會寫進資料夾「${dirH?.name || ''}」。`, `Autosaves and versions go to the folder “${dirH?.name || ''}”.`),
+  share:tr('自動暫存在這台裝置；按「存檔」時會跳出「儲存到檔案」，選 iCloud 雲碟。', 'Autosaves stay on this device; “Save” opens “Save to Files”.'),
+  local:tr('自動暫存與存檔版本都在這台裝置；要備份請按「存到 iCloud」。', 'Everything stays on this device; use “Save to iCloud” to back up.')})[saveMode] || '';
+function openSetup(){
+  document.querySelectorAll('#setupDlg .opt').forEach(b => b.classList.toggle('on', b.dataset.mode === saveMode));
+  $('#setupDlg [data-mode=folder]').hidden = !window.showDirectoryPicker;
+  $('#setupNote').textContent = (window.showDirectoryPicker ? '' : tr('iPhone／iPad 的瀏覽器不允許網頁自動寫入 iCloud，所以自動暫存會放在這台裝置。請把網站「加入主畫面」使用，資料才不會被 Safari 清掉。', 'Browsers on iPhone / iPad can’t write to iCloud automatically, so autosaves stay on this device. Add the site to your Home Screen so Safari keeps the data.'))
+    + tr('之後可以在「我的方案」→「暫存設定」更改。', ' You can change this later in “My plans” → “Autosave settings”.');
+  $('#setupDlg').showModal();
+}
+$('#setupDlg .setup-opts').onclick = async e => {
+  const m = e.target.closest('[data-mode]')?.dataset.mode; if (!m) return;
+  if (m === 'folder'){
+    try { dirH = await showDirectoryPicker({id:'huxing', mode:'readwrite'}); } catch(err) { return; }
+    await idb('readwrite', s => s.put(dirH, 'dir')); dirOK = true; $('#dirResume').hidden = true;
+  }
+  saveMode = m; try { localStorage.setItem(SAVE_MODE, m); } catch(err) {}
+  $('#setupDlg').close(); renderPlans(); autosave();
+  toast(tr('已設定：', 'Set: ') + MODE_TXT());
+};
+$('#setupClose').onclick = () => $('#setupDlg').close();
+$('#pSetup').onclick = () => { $('#plansDlg').close(); openSetup(); };
 function loadState(s){ const b = snap(); state = fixState(JSON.parse(JSON.stringify(s))); delete state.meta; ui.sel = null; commit(b); renderAll(); }
 function openPlan(id){
   const p = plans.find(p => p.id === id); if (!p) return;
@@ -1807,14 +1900,21 @@ async function saveToFiles(name, s){
 }
 function renderPlans(){
   $('#curName').textContent = curName();
+  $('#modeHintTxt').textContent = MODE_TXT();
+  const vs = plans.find(p => p.id === curPlan)?.versions || [];
+  $('#verList').innerHTML = vs.length ? `<h5>${tr('已存檔的版本', 'Saved versions')}</h5>` + vs.map((v, i) => `<div class="plan" data-v="${i}">
+      <div><b>${tr('第 ', 'Version ')}${vs.length - i}${tr(' 版', '')}</b><small>${fmtTime(v.t)}</small></div>
+      <button class="btn" data-act="restore">${tr('還原', 'Restore')}</button>
+      <button class="btn" data-act="vfile" title="${tr('存到 iCloud', 'Save to iCloud')}">☁️</button>
+    </div>`).join('') : '';
   $('#planList').innerHTML = plans.length ? plans.map(p => `<div class="plan ${p.id === curPlan ? 'cur' : ''}" data-id="${p.id}">
-      <div><b>${esc(p.name)}</b><small>${fmtTime(p.updated)}${p.id === curPlan ? tr(' · 目前', ' · current') : ''}</small></div>
+      <div><b>${esc(p.name)}</b><small>${fmtTime(p.updated)} · ${tr(`${p.versions.length} 個版本`, `${p.versions.length} versions`)}${p.id === curPlan ? tr(' · 目前', ' · current') : ''}</small></div>
       <button class="btn" data-act="open">${tr('開啟', 'Open')}</button>
       <button class="btn" data-act="rename" title="${tr('改名', 'Rename')}">✎</button>
       <button class="btn" data-act="file" title="${tr('存到 iCloud', 'Save to iCloud')}">☁️</button>
       <button class="btn danger" data-act="del" title="${tr('刪除', 'Delete')}">🗑</button>
     </div>`).join('')
-    : `<div class="empty">${tr('還沒有儲存的方案，按「儲存」建立第一個', 'No saved plans yet. Tap “Save” to create one')}</div>`;
+    : `<div class="empty">${tr('還沒有方案，按「存檔」建立第一個', 'No plans yet. Tap “Save” to create one')}</div>`;
 }
 $('#planList').onclick = e => {
   const act = e.target.closest('[data-act]')?.dataset.act, id = e.target.closest('.plan')?.dataset.id, p = plans.find(p => p.id === id);
@@ -1825,6 +1925,12 @@ $('#planList').onclick = e => {
   else if (act === 'del' && confirm(tr('刪除「', 'Delete “') + p.name + tr('」？無法復原', '”? This cannot be undone'))) {
     plans = plans.filter(x => x !== p); if (curPlan === id) curPlan = null; savePlans(); renderPlans();
   }
+};
+$('#verList').onclick = e => {
+  const act = e.target.closest('[data-act]')?.dataset.act, p = plans.find(p => p.id === curPlan), v = p?.versions[e.target.closest('[data-v]')?.dataset.v];
+  if (!v) return;
+  if (act === 'restore'){ loadState(v.state); $('#plansDlg').close(); toast(tr(`已還原到 ${fmtTime(v.t)} 的版本（可撤銷）`, `Restored the ${fmtTime(v.t)} version (undoable)`)); }
+  else if (act === 'vfile') saveToFiles(`${safeName(p.name)} ${new Date(v.t).toLocaleString('sv').slice(0, 16).replace(':', '.')}`, v.state);
 };
 $('#plansBtn').onclick = () => { $('details.menu').open = false; renderPlans(); $('#plansDlg').showModal(); };
 $('#plansClose').onclick = () => $('#plansDlg').close();
@@ -1876,6 +1982,8 @@ applyStaticLang(); syncFullscreen();
 buildDefs(); buildLib(); applyLayout(state.layout);
 $('#tip').textContent = TIPS()['2d'];
 fitView(); renderAll();
+if (!saveMode) openSetup();   // 第一次使用：選一次暫存位置
+else if (saveMode === 'folder') autosave();   // 檢查資料夾權限，需要時顯示「點一下繼續」
 </script>
 <script type="module">
 /* ============================================================
