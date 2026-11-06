@@ -249,7 +249,7 @@ main.drawer-panel #fab{opacity:0;visibility:hidden}
       <button class="btn chip" id="tgLib" data-en="◧ Library">◧ 家具库</button>
       <button class="btn chip" id="tgPanel" data-en="Properties ◨">属性 ◨</button>
     </div>
-    <div class="brand"><b data-en="3BR 2LR 2BA · Interior Design">三室两厅两卫 · 装修设计</b><span id="subtitle">原始户型 1:60 · 尺寸单位 mm</span></div>
+    <div class="brand"><b data-en="Room Planner">房間佈置模擬</b><span id="subtitle">原始户型 1:60 · 尺寸单位 mm</span></div>
     <div class="grp seg" id="viewSeg" title="切换 2D / 3D (T)" data-en-title="Switch 2D / 3D (T)">
       <span class="pill"></span>
       <button class="btn" data-view="2d" data-en="2D Plan">2D 平面</button>
@@ -309,12 +309,14 @@ main.drawer-panel #fab{opacity:0;visibility:hidden}
     <details class="menu"><summary class="btn" data-en="File ▾">文件 ▾</summary>
       <div class="menu-pop">
         <button class="btn" id="saveCur" data-en="Save plan">儲存方案</button>
+        <button class="btn" id="importScan" data-en="📐 Import room scan (USDZ)">📐 匯入房間掃描（USDZ）</button>
         <button class="btn" id="exportPng" data-en="Export image">导出图片</button>
         <button class="btn" id="exportJson" data-en="Save to iCloud / Files">存到 iCloud／檔案</button>
         <button class="btn" id="importJson" data-en="Open from iCloud / Files">從 iCloud／檔案開啟</button>
         <button class="btn danger" id="reset" data-en="Reset to default">重置为默认方案</button>
       </div></details>
     <input type="file" id="fileIn" accept=".json,application/json" hidden>
+    <input type="file" id="scanIn" accept=".usdz,model/vnd.usdz+zip" hidden>
   </header>
 
   <aside class="lib">
@@ -371,6 +373,7 @@ main.drawer-panel #fab{opacity:0;visibility:hidden}
     <button class="btn primary" id="pSave" data-en="Save">儲存</button>
     <button class="btn" id="pSaveAs" data-en="Save as new">另存新方案</button>
     <button class="btn" id="pNew" data-en="New empty plan">新的空白方案</button>
+    <button class="btn" id="pScan" data-en="📐 Import room scan">📐 匯入房間掃描</button>
   </div>
   <div id="planList"></div>
   <div class="dlg-row">
@@ -415,7 +418,7 @@ const nm = s => LANG === 'en' ? (NAMES_EN[s] ?? s) : LANG === 'zht' ? s2t(s) : s
 // 静态文案：元素上写 data-en / data-en-title，中文原文首次切换时存进 dataset
 function applyStaticLang(){
   document.documentElement.lang = {zh:'zh-CN', zht:'zh-TW', en:'en'}[LANG];
-  document.title = tr('户型装修设计', 'Floor Plan Designer');
+  document.title = tr('房間佈置模擬', 'Room Planner');
   document.querySelectorAll('[data-en]').forEach(el => { el.dataset.zh ??= el.textContent; el.textContent = tr(el.dataset.zh, el.dataset.en); });
   document.querySelectorAll('[data-en-title]').forEach(el => { el.dataset.zhTitle ??= el.title; el.title = tr(el.dataset.zhTitle, el.dataset.enTitle); });
   document.querySelectorAll('#langSel [data-lang]').forEach(b => { const on = b.dataset.lang === LANG; b.classList.toggle('on', on); b.setAttribute('aria-pressed', on); });
@@ -430,7 +433,7 @@ function applyStaticLang(){
  *  右：3370/240/2760/240/3950 = 10560
  * ============================================================ */
 // 墙体：[x0,y0,x1,y1,类型]  b=承重(黑) e=外墙 n=可拆非承重 low=矮墙
-const WALLS = [
+let WALLS = [
   // 顶部外墙
   [1580,-240,2120,0,'b'],[1580,0,1820,300,'b'],[2120,-240,4580,0,'e'],[4580,-240,5140,0,'e'],
   [5760,-240,6050,0,'e'],[6050,-240,6600,0,'b'],[6360,0,6600,300,'b'],[6600,-240,9960,0,'e'],
@@ -458,7 +461,7 @@ const WALLS = [
   [6083,4600,6323,6610,'n'],[6323,6370,9960,6610,'n'],
 ];
 // 窗
-const WINS = [
+let WINS = [
   [5140,-240,5760,0],[1580,300,1820,3370],[-240,3370,1580,3610],[2180,3825,2420,4430],
   [10510,6370,12090,6610],[11850,6610,12090,9960],
   // 飘窗（主卧 / 子女房）
@@ -466,7 +469,7 @@ const WINS = [
   [10510,4110,11130,4210],[11030,4210,11130,5785],[10510,5785,11130,5885],
 ];
 // 平开门：洞口、铰点、关闭方向、开启方向、门宽
-const DOORS = [
+let DOORS = [
   {name:'小孩房门',rect:[4580,2400,4820,3280],h:[4580,3280],c:[0,-1],o:[-1,0],len:880},
   {name:'主卧门',rect:[6360,2400,6600,3280],h:[6600,3280],c:[0,-1],o:[1,0],len:880},
   {name:'主卫门',rect:[6360,1198,6600,1983],h:[6360,1198],c:[0,1],o:[-1,0],len:785},
@@ -475,12 +478,12 @@ const DOORS = [
   {name:'入户门',rect:[4580,8310,4820,9200],h:[4820,9200],c:[0,-1],o:[1,0],len:890,entry:true},
 ];
 // 推拉门
-const SLIDES = [
+let SLIDES = [
   {rect:[10270,7400,10510,9770],v:true},
   {rect:[1275,4950,2090,5190],v:false},
 ];
 const R = (x0,y0,x1,y1) => [[x0,y0],[x1,y0],[x1,y1],[x0,y1]];
-const ROOMS = [
+let ROOMS = [
   {id:'master', name:'主卧室', poly:R(6600,0,10270,3370), mat:'wood', at:[8435,2420]},
   {id:'mbath', name:'主卫浴', poly:R(4820,0,6360,2080), mat:'antislip', at:[5980,1780]},
   {id:'kid', name:'小孩房', poly:R(1820,0,4580,3370), mat:'wood', at:[3380,2330]},
@@ -495,6 +498,32 @@ const ROOMS = [
   {id:'bay1', name:'主卧飘窗', poly:[[10270,800],[10510,800],[10510,760],[11030,760],[11030,2650],[10510,2650],[10510,2600],[10270,2600]], mat:'marble', counted:false},
   {id:'bay2', name:'子女房飘窗', poly:[[10270,4260],[10510,4260],[10510,4210],[11030,4210],[11030,5785],[10510,5785],[10510,5740],[10270,5740]], mat:'marble', counted:false},
 ];
+
+/* ============================================================
+ *  格局可替換：上面是原作者的預設戶型；匯入掃描後的格局存在 state.layout
+ *  窗：[x0,y0,x1,y1,窗台高 m,窗頂高 m]；lintels：[[rect], 底高 m] 洞口上方過梁
+ * ============================================================ */
+WINS = WINS.map((w, i) => [...w, i === 0 ? 1.4 : i >= 6 ? .45 : .9, 2.4]);
+const BASE_LAYOUT = {walls:WALLS, wins:WINS, doors:DOORS, slides:SLIDES, rooms:ROOMS, entry:true,
+  lintels:[[[10270,800,10510,2600], 2.4], [[10270,4260,10510,5740], 2.4]], walk:[[4200,8755],[7000,8755]]};
+let LAYOUT = BASE_LAYOUT, layoutRef, layoutSig = '';
+function bboxOf(rects){
+  const b = [Infinity, Infinity, -Infinity, -Infinity];
+  rects.forEach(r => { b[0] = Math.min(b[0], r[0]); b[1] = Math.min(b[1], r[1]); b[2] = Math.max(b[2], r[2]); b[3] = Math.max(b[3], r[3]); });
+  return b;
+}
+// 切換格局：更新全域資料、可視範圍，並重畫只在初始化時畫一次的圖層
+function applyLayout(L){
+  LAYOUT = L || BASE_LAYOUT;
+  ({walls:WALLS, wins:WINS, doors:DOORS, slides:SLIDES, rooms:ROOMS} = LAYOUT);
+  if (LAYOUT === BASE_LAYOUT) Object.assign(BOUNDS, {x:-1850, y:-1750, w:15600, h:14100});
+  else { const [x0, y0, x1, y1] = bboxOf(WALLS); Object.assign(BOUNDS, {x:x0 - 1700, y:y0 - 1700, w:x1 - x0 + 3400, h:y1 - y0 + 3400}); }
+  layoutRef = state?.layout;
+  renderOpenings(); renderDims();
+  const sig = L ? JSON.stringify(L) : '';
+  if (sig !== layoutSig){ layoutSig = sig; ui.sel = null; fitView(); }   // 換了格局才重新取景，撤銷等不跳畫面
+}
+const layoutCenter = () => LAYOUT === BASE_LAYOUT ? [6000, 5300] : (b => [(b[0]+b[2])/2, (b[1]+b[3])/2])(bboxOf(WALLS));
 const MATS = {
   wood:    {name:'橡木地板', price:320, sw:'#d8b88a'},
   walnut:  {name:'胡桃木地板', price:380, sw:'#9b7250'},
@@ -575,7 +604,7 @@ function defaultFurniture(){ return [
 ];}
 
 function defaultState(){
-  const rooms = {}; ROOMS.forEach(r => rooms[r.id] = {name:r.name, mat:r.mat});
+  const rooms = {}; BASE_LAYOUT.rooms.forEach(r => rooms[r.id] = {name:r.name, mat:r.mat});
   return {furniture:defaultFurniture(), rooms, demolished:[], measures:[]};
 }
 
@@ -585,8 +614,8 @@ function load(){
   return null;
 }
 function fixState(s){
-  const d = defaultState();
-  s.rooms = Object.assign(d.rooms, s.rooms || {});
+  const rooms = {}; (s.layout?.rooms || BASE_LAYOUT.rooms).forEach(r => rooms[r.id] = {name:r.name, mat:r.mat});
+  s.rooms = Object.assign(rooms, s.rooms || {});
   s.demolished = s.demolished || []; s.measures = s.measures || [];
   return s;
 }
@@ -815,7 +844,7 @@ function renderOpenings(){
     else { const L = x1-x0, m = (y0+y1)/2; s += `<rect x="${x0}" y="${m-45}" width="${L*.55}" height="40" fill="#fff" ${DS}/><rect x="${x1-L*.55}" y="${m+5}" width="${L*.55}" height="40" fill="#fff" ${DS}/>`; }
   });
   // 入户标识
-  s += `<path d="M3350 8755H4350M4150 8600L4400 8755L4150 8910" fill="none" stroke="#b5653a" stroke-width="2" vector-effect="non-scaling-stroke"/>
+  if (LAYOUT.entry) s += `<path d="M3350 8755H4350M4150 8600L4400 8755L4150 8910" fill="none" stroke="#b5653a" stroke-width="2" vector-effect="non-scaling-stroke"/>
         <text x="3380" y="8600" font-size="200" fill="#b5653a">${tr('入户','Entry')}</text>`;
   $('#gOpen').innerHTML = s;
 }
@@ -843,7 +872,10 @@ function renderDims(){
     return s;
   };
   const g = $('#gDims');
-  g.innerHTML =
+  if (LAYOUT !== BASE_LAYOUT){   // 匯入的格局：標總長、總寬
+    const [x0, y0, x1, y1] = bboxOf(WALLS).map(Math.round);
+    g.innerHTML = chain(true, y0 - 700, x0, [x1 - x0]) + chain(false, x0 - 700, y0, [y1 - y0]);
+  } else g.innerHTML =
     chain(true,-750,0,[1580,240,2760,240,1540,240,3670]) + chain(true,-1250,0,[10270]) +
     chain(true,11350,0,[2180,240,2160,240,5450,240,1340]) + chain(true,11850,0,[11850]) +
     chain(false,-800,0,[3370,1580,240,2770,240,2360]) + chain(false,-1300,0,[10560]) +
@@ -900,13 +932,14 @@ function renderSel(){
 }
 
 function renderAll(){
+  if (state.layout !== layoutRef) applyLayout(state.layout);   // 開啟方案 / 撤銷 / 匯入後格局可能換了
   renderGrid(); renderRooms(); renderFurn(); renderWalls(); renderLabels(); renderMeasure(); renderSel(); renderPanel(); updateHeader();
   window.View3D?.sync();
 }
 
 function updateHeader(){
   const tot = ROOMS.filter(r => r.counted !== false).reduce((a,r) => a + area(r.poly), 0);
-  $('#subtitle').textContent = tr(`套内使用面积约 ${fmt(tot)} m² · 尺寸单位 mm · 原图比例 1:60`, `Net floor area ≈ ${fmt(tot)} m² · Units: mm · Original scale 1:60`);
+  $('#subtitle').textContent = LAYOUT !== BASE_LAYOUT ? tr(`掃描匯入 · 面積約 ${fmt(tot)} m² · 尺寸單位 mm`, `Scanned · Floor area ≈ ${fmt(tot)} m² · Units: mm`) : tr(`套内使用面积约 ${fmt(tot)} m² · 尺寸单位 mm · 原图比例 1:60`, `Net floor area ≈ ${fmt(tot)} m² · Units: mm · Original scale 1:60`);
   $('#undo').disabled = !undoStack.length; $('#redo').disabled = !redoStack.length;
   $('#undo').style.opacity = undoStack.length ? 1 : .4; $('#redo').style.opacity = redoStack.length ? 1 : .4;
 }
@@ -1509,6 +1542,180 @@ document.addEventListener('pointerdown', e => { const m = $('details.menu'); if 
 matchMedia('(max-width:1100px)').addEventListener('change', () => drawer(null));
 drawer(null);                                  // 恢复上次的面板收起状态
 $('#exportPng').onclick = exportPNG;
+/* ======================= 匯入 LiDAR 掃描（Apple RoomPlan 匯出的 .usdz） ======================= */
+// usdz = 不壓縮的 zip，裡面每面牆、門、窗、家具都是一個 .usda 方塊（位置矩陣 + 尺寸）
+async function unzip(buf){
+  const u8 = new Uint8Array(buf), dv = new DataView(buf), td = new TextDecoder(), files = {};
+  let e = u8.length - 22; while (e >= 0 && dv.getUint32(e, true) !== 0x06054b50) e--;
+  if (e < 0) throw new Error('not zip');
+  let p = dv.getUint32(e + 16, true);
+  for (let i = dv.getUint16(e + 10, true); i > 0; i--){
+    const method = dv.getUint16(p + 10, true), size = dv.getUint32(p + 20, true), nl = dv.getUint16(p + 28, true), off = dv.getUint32(p + 42, true);
+    const name = td.decode(u8.subarray(p + 46, p + 46 + nl));
+    p += 46 + nl + dv.getUint16(p + 30, true) + dv.getUint16(p + 32, true);
+    const start = off + 30 + dv.getUint16(off + 26, true) + dv.getUint16(off + 28, true);
+    let data = u8.subarray(start, start + size);
+    if (method === 8) data = new Uint8Array(await new Response(new Blob([data]).stream().pipeThrough(new DecompressionStream('deflate-raw'))).arrayBuffer());
+    files[name] = data;
+  }
+  return files;
+}
+const nums = s => (s.match(/-?\d*\.?\d+(?:e[-+]?\d+)?/gi) || []).map(Number);
+function parseUsda(t){
+  const cat = t.match(/string Category = "([^"(]+)/)?.[1]?.trim(), m = t.match(/matrix4d xformOp:transform = (.*)/);
+  if (!cat || !m) return null;
+  const v = nums(m[1]), s = t.match(/xformOp:scale = \(([^)]*)\)/), pts = t.match(/point3f\[\] points = \[([^\]]*)\]/), fi = t.match(/int\[\] faceVertexIndices = \[([^\]]*)\]/);
+  const p = pts && nums(pts[1]);
+  return {cat, name:t.match(/defaultPrim = "([^"]+)"/)?.[1] || cat, m:[0, 4, 8, 12].map(i => v.slice(i, i + 4)), s:s && nums(s[1]),
+    pts:p && Array.from({length:p.length/3}, (_, i) => p.slice(i*3, i*3 + 3)), faces:fi && nums(fi[1])};
+}
+const SCAN_FURN = {Bed:['bed','床'], Sofa:['sofa','沙發'], Table:['table','桌子'], Chair:['chair','椅子'], Storage:['cabinet','收納櫃'],
+  Refrigerator:['fridge','冰箱'], Stove:['stove','爐台'], Oven:['ovencol','烤箱'], Dishwasher:['dishwasher','洗碗機'], Sink:['ksink','水槽'],
+  Toilet:['toilet','馬桶'], Bathtub:['bathtub','浴缸'], Television:['tv','電視'], Washerdryer:['washer','洗衣機'], Fireplace:['cabinet','壁爐'], Stairs:['cabinet','樓梯']};
+// RoomPlan 物件 → 本頁的格局（mm、y 向下）。掃描常有幾度的整體歪斜，先找出牆的主方向轉正，再把牆對齊、接上牆角
+function scanToPlan(items){
+  const T = 100, rd = Math.round, walls = items.filter(e => e.cat === 'Wall'), floor = items.find(e => e.cat === 'Floor');
+  const ang = e => Math.atan2(e.m[0][2], e.m[0][0])*180/Math.PI;
+  // 主方向：牆長加權，找最多牆落在 ±2° 內的角度（模 90）
+  let best = 0, bs = -1;
+  for (let k = 0; k < 900; k++){
+    let sc = 0;
+    walls.forEach(w => { if (!w.s) return; const d = ((ang(w) - k/10)%90 + 90)%90, dd = Math.min(d, 90 - d); if (dd < 2) sc += w.s[0]*(2 - dd); });
+    if (sc > bs){ bs = sc; best = k/10; }
+  }
+  if (best > 45) best -= 90;   // 轉最小角度，保持掃描時的方位
+  const c = Math.cos(-best*Math.PI/180), s = Math.sin(-best*Math.PI/180);
+  const P = (x, z) => [(x*c - z*s)*1000, (x*s + z*c)*1000];
+  const world = (e, [px, py, pz]) => [e.m[3][0] + px*e.m[0][0] + py*e.m[1][0] + pz*e.m[2][0], e.m[3][2] + px*e.m[0][2] + py*e.m[1][2] + pz*e.m[2][2]];
+  const floorY = floor ? floor.m[3][1] : Math.min(...walls.filter(w => w.s).map(w => w.m[3][1] - w.s[1]/2));
+  // 方塊 → 平面上的中線線段
+  const seg = e => {
+    if (e.s){ const [cx, cy] = P(e.m[3][0], e.m[3][2]), [ux, uy] = P(e.m[0][0], e.m[0][2]), n = Math.hypot(ux, uy), h = e.s[0]*500;
+      return [[cx - ux/n*h, cy - uy/n*h], [cx + ux/n*h, cy + uy/n*h]]; }
+    if (!e.pts) return null;   // 弧形牆是網格：取最遠的兩點
+    const q = e.pts.map(p => P(...world(e, p))); let a = q[0], b = q[0], d = -1;
+    q.forEach(x => q.forEach(y => { const v = Math.hypot(x[0]-y[0], x[1]-y[1]); if (v > d){ d = v; a = x; b = y; } }));
+    return [a, b];
+  };
+  const axis = ([a, b]) => {   // 接近水平 / 垂直的轉成軸向，太斜的放棄
+    const t = ((Math.atan2(b[1]-a[1], b[0]-a[0])*180/Math.PI)%180 + 180)%180;
+    if (Math.min(t, 180 - t) < 12) return {v:false, at:(a[1]+b[1])/2, lo:Math.min(a[0], b[0]), hi:Math.max(a[0], b[0])};
+    if (Math.abs(t - 90) < 12) return {v:true, at:(a[0]+b[0])/2, lo:Math.min(a[1], b[1]), hi:Math.max(a[1], b[1])};
+    return null;
+  };
+  let dropped = 0;
+  const W = [];
+  walls.forEach(e => { const g = seg(e), a = g && axis(g); if (a && a.hi - a.lo > 150) W.push({...a, cuts:[]}); else dropped++; });
+  // 同一條線上、彼此相鄰的牆對齊到同一個座標
+  [false, true].forEach(v => {
+    const L = W.filter(w => w.v === v).sort((a, b) => a.at - b.at);
+    L.forEach((w, i) => L.slice(i + 1).forEach(o => {
+      if (Math.abs(o.at - w.at) < 80 && o.lo < w.hi + 300 && w.lo < o.hi + 300){
+        const k = (w.hi - w.lo)/((w.hi - w.lo) + (o.hi - o.lo)); o.at = w.at = w.at*k + o.at*(1 - k);
+      }
+    }));
+  });
+  // 牆角：端點離垂直牆 250 mm 內就接上去
+  W.forEach(w => ['lo', 'hi'].forEach(end => {
+    let bestO = null, bd = 250;
+    W.forEach(o => { if (o.v === w.v) return; const d = Math.abs(o.at - w[end]), gap = Math.max(0, o.lo - w.at, w.at - o.hi);
+      if (gap < 250 && d + gap < bd){ bd = d + gap; bestO = o; } });
+    if (bestO){ w[end] = bestO.at; bestO.lo = Math.min(bestO.lo, w.at); bestO.hi = Math.max(bestO.hi, w.at); }
+  }));
+  // 門、窗、開口：找所在的牆，在牆上挖洞
+  const ops = [];
+  items.filter(e => /^(Door|Window|Opening)/.test(e.cat) && e.s).forEach(e => {
+    const a = axis(seg(e)); if (!a) return dropped++;
+    let host = null, bd = 200;
+    W.forEach(w => { if (w.v !== a.v || w.lo > a.hi || a.lo > w.hi) return; const d = Math.abs(w.at - a.at); if (d < bd){ bd = d; host = w; } });
+    if (host){ a.at = host.at; a.lo = Math.max(a.lo, host.lo); a.hi = Math.min(a.hi, host.hi); }
+    if (a.hi - a.lo < 200) return dropped++;
+    host?.cuts.push([a.lo, a.hi]);
+    ops.push({...a, cat:e.cat, bottom:e.m[3][1] - e.s[1]/2 - floorY, top:e.m[3][1] + e.s[1]/2 - floorY});
+  });
+  const rect = (v, at, lo, hi, t = T) => v ? [at - t/2, lo, at + t/2, hi] : [lo, at - t/2, hi, at + t/2];
+  const walls2 = [];
+  W.forEach(w => {
+    let x = w.lo - T/2; const end = w.hi + T/2;
+    w.cuts.sort((a, b) => a[0] - b[0]).forEach(([a, b]) => { if (a - x > 20) walls2.push([...rect(w.v, w.at, x, a), 'n']); x = Math.max(x, b); });
+    if (end - x > 20) walls2.push([...rect(w.v, w.at, x, end), 'n']);
+  });
+  // 地板外框：網格中只被一個三角形用到的邊就是外框
+  let poly = null;
+  if (floor?.pts && floor.faces){
+    // 網格有上下兩面和側邊：只比平面座標，側邊壓扁成零面積就略過，上下兩面重疊的三角形只算一次
+    const key = p => p[0].toFixed(3) + ',' + p[1].toFixed(3), tris = new Map(), edges = new Map();
+    for (let i = 0; i + 2 < floor.faces.length; i += 3){
+      const t = [0, 1, 2].map(k => floor.pts[floor.faces[i + k]]);
+      if (Math.abs((t[1][0]-t[0][0])*(t[2][1]-t[0][1]) - (t[1][1]-t[0][1])*(t[2][0]-t[0][0])) < 1e-6) continue;
+      tris.set(t.map(key).sort().join('|'), t);
+    }
+    tris.forEach(t => t.forEach((p, i) => { const q = t[(i + 1)%3], k = [key(p), key(q)].sort().join('|'); edges.set(k, edges.has(k) ? null : [p, q]); }));
+    const nb = new Map(), pt = new Map();
+    edges.forEach(e => { if (!e) return; const [a, b] = e.map(key); pt.set(a, e[0]); pt.set(b, e[1]); [[a, b], [b, a]].forEach(([x, y]) => (nb.get(x) || nb.set(x, []).get(x)).push(y)); });
+    const seen = new Set(); let bestA = 0;
+    nb.forEach((_, k0) => {
+      if (seen.has(k0)) return;
+      const loop = []; let k = k0, prev = null;
+      while (k && !seen.has(k)){ seen.add(k); loop.push(pt.get(k)); const n = nb.get(k).find(x => x !== prev && !seen.has(x)); prev = k; k = n; }
+      const q = loop.map(p => P(...world(floor, p)));
+      if (q.length > 2 && area(q) > bestA){ bestA = area(q); poly = q; }
+    });
+  }
+  const [bx0, by0, bx1, by1] = bboxOf(walls2);
+  if (!poly) poly = R(bx0, by0, bx1, by1);
+  poly = poly.filter((p, i) => { const a = poly.at(i - 1), b = poly[(i + 1)%poly.length]; return Math.abs((p[0]-a[0])*(b[1]-a[1]) - (p[1]-a[1])*(b[0]-a[0])) > 2e4; });
+  // 家具
+  const furniture = [];
+  items.forEach(e => {
+    const map = SCAN_FURN[e.cat]; if (!map || !e.s) return;
+    const [cx, cy] = P(e.m[3][0], e.m[3][2]), [ux, uy] = P(e.m[0][0], e.m[0][2]);
+    let r = Math.atan2(uy, ux)*180/Math.PI; const r90 = Math.round(r/90)*90; r = Math.abs(r - r90) < 8 ? r90 : Math.round(r);
+    const elev = rd((e.m[3][1] - e.s[1]/2 - floorY)*1000), high = e.cat === 'Storage' && elev > 1000;
+    const f = F(map[0], high ? '吊櫃' : map[1], cx, cy, rd(e.s[0]*100)*10, Math.max(100, rd(e.s[2]*100)*10), (r%360 + 360)%360);
+    if (elev > 300) f.elev = elev;
+    furniture.push(f);
+  });
+  // 門窗
+  const inside = (x, y) => { let k = false; poly.forEach((a, i) => { const b = poly.at(i - 1); if ((a[1] > y) !== (b[1] > y) && x < (b[0]-a[0])*(y-a[1])/(b[1]-a[1]) + a[0]) k = !k; }); return k; };
+  const wins = [], doors = [], slides = [], lintels = [];
+  ops.forEach(o => {
+    const r = rect(o.v, o.at, o.lo, o.hi), head = Math.round(Math.min(2.6, Math.max(1.8, o.top))*100)/100;
+    if (o.cat === 'Window') return wins.push([...r, Math.round(Math.max(0, o.bottom)*100)/100, Math.round(Math.min(2.7, o.top)*100)/100]);
+    if (o.cat === 'Opening') return lintels.push([r, head]);
+    if (o.hi - o.lo > 1300) return slides.push({rect:r, v:o.v, head});
+    const len = rd(o.hi - o.lo), sg = [1, -1].find(g => o.v ? inside(o.at + g*len/2, o.lo + len/2) : inside(o.lo + len/2, o.at + g*len/2)) || 1;
+    doors.push(o.v ? {name:'門', rect:r, h:[o.at + sg*T/2, o.lo], c:[0, 1], o:[sg, 0], len, head}
+                   : {name:'門', rect:r, h:[o.lo, o.at + sg*T/2], c:[1, 0], o:[0, sg], len, head});
+  });
+  // 平移到左上角 = (0, 0)，數字取整
+  const dx = -bx0, dy = -by0, mv = r => [rd(r[0] + dx), rd(r[1] + dy), rd(r[2] + dx), rd(r[3] + dy), ...r.slice(4)], mp = p => [rd(p[0] + dx), rd(p[1] + dy)];
+  furniture.forEach(f => { f.cx = rd(f.cx + dx); f.cy = rd(f.cy + dy); });
+  const ply = poly.map(mp), at = ply.reduce((a, p) => [a[0] + p[0]/ply.length, a[1] + p[1]/ply.length], [0, 0]).map(rd);
+  return {
+    layout:{walls:walls2.map(mv), wins:wins.map(mv), slides:slides.map(d => ({...d, rect:mv(d.rect)})), lintels:lintels.map(([r, h]) => [mv(r), h]),
+      doors:doors.map(d => ({...d, rect:mv(d.rect), h:mp(d.h)})), rooms:[{id:'scan', name:'室內', poly:ply, mat:'wood', at}],
+      walk:[at, [at[0] + 1000, at[1]]], scanAngle:best},
+    furniture, dropped,
+  };
+}
+async function importScan(file){
+  let items;
+  try {
+    const files = await unzip(await file.arrayBuffer()), td = new TextDecoder();
+    items = Object.entries(files).filter(([n]) => n.endsWith('.usda')).map(([, d]) => parseUsda(td.decode(d))).filter(Boolean);
+    if (!items.some(e => e.cat === 'Wall')) throw 0;
+  } catch(e) { return toast(tr('讀不到牆的資料，請用掃描 App 的「Room」模式匯出 USDZ', 'No walls found. Export USDZ from the scanner app’s Room mode')); }
+  const r = scanToPlan(items), n = r.furniture.length;
+  const withF = n && confirm(tr(`掃描到 ${n} 件家具，要一起放進來嗎？\n（之後可以個別移動、刪除；選「取消」只匯入空房間）`, `${n} furniture items were scanned. Include them?\n(You can move or delete them later. Cancel imports the empty rooms only.)`));
+  const name = file.name.replace(/\.usdz$/i, '') + ' ' + new Date().toLocaleDateString('zh-TW', {month:'numeric', day:'numeric'});
+  loadState({furniture:withF ? r.furniture : [], rooms:{scan:{name:'室內', mat:'wood'}}, demolished:[], measures:[], layout:r.layout});
+  storePlan(name, cleanState()); renderPlans();
+  if ($('#plansDlg').open) $('#plansDlg').close();
+  const L = r.layout;
+  toast(tr(`已匯入：牆 ${L.walls.length}、門 ${L.doors.length + L.slides.length}、窗 ${L.wins.length}${withF ? `、家具 ${n}` : ''}`, `Imported: ${L.walls.length} walls, ${L.doors.length + L.slides.length} doors, ${L.wins.length} windows${withF ? `, ${n} furniture` : ''}`));
+}
+
 /* ======================= 我的方案（瀏覽器內紀錄）＋ iCloud 存取 ======================= */
 // 方案清單存在 localStorage；檔案格式 = state ＋ meta:{name, savedAt}，與原本的「导出方案 JSON」相容
 const PLANS = 'huxing-plans-v1', CUR = 'huxing-cur-plan';
@@ -1590,11 +1797,13 @@ $('#pSave').onclick = $('#saveCur').onclick = () => { $('details.menu').open = f
 $('#pSaveAs').onclick = saveAsNew;
 $('#pNew').onclick = () => {
   const n = askName(tr('我的方案 ', 'My plan ') + (plans.length + 1)); if (!n) return;
-  loadState({...defaultState(), furniture:[]}); storePlan(n, cleanState()); renderPlans();
+  loadState({...defaultState(), furniture:[], ...(state.layout && {layout:state.layout, rooms:state.rooms})}); storePlan(n, cleanState()); renderPlans();   // 保留目前的格局
   $('#plansDlg').close(); toast(tr('已建立「', 'Created “') + n + tr('」', '”'));
 };
 $('#pToFile').onclick = $('#exportJson').onclick = () => { $('details.menu').open = false; saveToFiles(curName(), cleanState()); };
 $('#pFromFile').onclick = $('#importJson').onclick = () => $('#fileIn').click();
+$('#pScan').onclick = $('#importScan').onclick = () => { $('details.menu').open = false; $('#scanIn').click(); };
+$('#scanIn').onchange = e => { const file = e.target.files[0]; if (file) importScan(file); e.target.value = ''; };
 $('#fileIn').onchange = e => {
   const file = e.target.files[0]; if (!file) return;
   file.text().then(txt => {
@@ -1628,7 +1837,7 @@ function setLang(l){
 $('#langSel').onclick = e => { const l = e.target.closest('[data-lang]')?.dataset.lang; if (l && l !== LANG) setLang(l); };
 
 applyStaticLang(); syncFullscreen();
-buildDefs(); buildLib(); renderOpenings(); renderDims();
+buildDefs(); buildLib(); applyLayout(state.layout);
 $('#tip').textContent = TIPS()['2d'];
 fitView(); renderAll();
 </script>
@@ -1647,7 +1856,8 @@ import {RoomEnvironment} from 'three/addons/environments/RoomEnvironment.js';
 import {CSS2DRenderer, CSS2DObject} from 'three/addons/renderers/CSS2DRenderer.js';
 
 const stage = $('#stage'), host = $('#view3d');
-const OX = 6000, OY = 5300, H = 2.8, FOV = 45;       // 户型中心放在世界原点，层高 2.8 m
+const H = 2.8, FOV = 45;                              // 户型中心放在世界原点，层高 2.8 m
+let [OX, OY] = layoutCenter();
 const wx = x => (x - OX) / 1000, wz = y => (y - OY) / 1000, M = v => v / 1000;
 const SW = () => stage.clientWidth, SH = () => stage.clientHeight;
 const opt = {cut:2.8, furn:true, labels:true, night:false, hour:10, mode:'orbit'};
@@ -1723,7 +1933,7 @@ function init(){
     const f = getF(fdrag.id), g = groundAt(e.clientX, e.clientY); if (!f || !g) return;
     fdrag.moved = true; cv.style.cursor = 'grabbing';
     [f.cx, f.cy] = snapMove(f, g.x - fdrag.ox, g.y - fdrag.oy);
-    furnG.children.find(o => o.userData.fid === f.id)?.position.set(wx(f.cx), 0, wz(f.cy));   // 拖动中只挪模型，松手再整体同步
+    furnG.children.find(o => o.userData.fid === f.id)?.position.set(wx(f.cx), M(f.elev || 0), wz(f.cy));   // 拖动中只挪模型，松手再整体同步
   });
   const endF = e => {
     if (!fdrag || e.pointerId !== fdrag.pid) return;
@@ -2391,7 +2601,7 @@ function buildFurniture(f){
     }
     default: g.add(box(w, .8, d, c));
   }
-  g.position.set(wx(f.cx), 0, wz(f.cy));
+  g.position.set(wx(f.cx), M(f.elev || 0), wz(f.cy));
   g.rotation.y = -f.rot * Math.PI/180;       // 平面顺时针旋转 → 绕 Y 轴负向
   g.userData.fid = f.id;
   return g;
@@ -2439,10 +2649,10 @@ function buildArch(){
     colliders.push([wx(w[0]), wz(w[1]), wx(w[2]), wz(w[3])]);
   });
   // 门洞、飘窗洞口上方过梁
-  [...DOORS.map(d => [d.rect, 2.1]), ...SLIDES.map(s => [s.rect, s.v ? 2.4 : 2.1]), [[10270,800,10510,2600], 2.4], [[10270,4260,10510,5740], 2.4]]
+  [...DOORS.map(d => [d.rect, d.head || 2.1]), ...SLIDES.map(s => [s.rect, s.head || (s.v ? 2.4 : 2.1)]), ...(LAYOUT.lintels || [])]
     .forEach(([r, h]) => { if (top > h) wallBox(r, h, top); });
   WINS.forEach((r, i) => {
-    const sill = i === 0 ? 1.4 : i >= 6 ? .45 : .9, head = 2.4;
+    const sill = r[4] ?? .9, head = r[5] ?? 2.4;
     wallBox(r, 0, Math.min(sill, top)); if (top > head) wallBox(r, head, top);
     colliders.push([wx(r[0]), wz(r[1]), wx(r[2]), wz(r[3])]);
     const gTop = Math.min(head, top); if (gTop <= sill) return;
@@ -2454,7 +2664,7 @@ function buildArch(){
     [sill + .02, gTop - .02].forEach(y => { const tr = new THREE.Mesh(new THREE.BoxGeometry(hz ? L : .06, .04, hz ? .06 : L), frameMat); tr.position.set(cx, y, cz); archUp.add(tr); });
   });
   DOORS.forEach(d => {
-    const pivot = new THREE.Group(), L = M(d.len), dh = Math.min(2.05, top);
+    const pivot = new THREE.Group(), L = M(d.len), dh = Math.min((d.head || 2.1) - .05, top);
     pivot.position.set(wx(d.h[0]), 0, wz(d.h[1]));
     const leaf = box(L, dh, .04, mat(d.entry ? '#6b4f3a' : '#efe6d8', {roughness:.5}), L/2);
     const knob = new THREE.Mesh(new THREE.SphereGeometry(.03, 12, 8), metal()); knob.position.set(L - .07, Math.min(1, dh - .05), 0); knob.scale.z = 2.2;
@@ -2464,8 +2674,8 @@ function buildArch(){
     door.cur = door.a1; pivot.rotation.y = door.cur; leaf.userData.door = knob.userData.door = door;
     doors.push(door); archUp.add(pivot);
   });
-  SLIDES.forEach(({rect:[x0, y0, x1, y1], v}) => {
-    const L = M(v ? y1-y0 : x1-x0), ph = Math.min(v ? 2.4 : 2.1, top), pl = L*.55;
+  SLIDES.forEach(({rect:[x0, y0, x1, y1], v, head}) => {
+    const L = M(v ? y1-y0 : x1-x0), ph = Math.min(head || (v ? 2.4 : 2.1), top), pl = L*.55;
     [[-1, -.02], [1, .02]].forEach(([s, off]) => {
       const c = s < 0 ? -L/2 + pl/2 : L/2 - pl/2, x = v ? wx((x0+x1)/2) + off : wx(x0) + L/2 + c, z = v ? wz(y0) + L/2 + c : wz((y0+y1)/2) + off;
       const p = new THREE.Mesh(new THREE.BoxGeometry(v ? .02 : pl, ph, v ? pl : .02), glassMat); p.position.set(x, ph/2, z); archUp.add(p);
@@ -2502,8 +2712,8 @@ function buildLabels(){
 // 只重建变化的部分
 function sync(force){
   if (!inited || (!active && !force)) return;
-  const a = JSON.stringify([state.rooms, state.demolished, opt.cut]), f = JSON.stringify(state.furniture), l = JSON.stringify([state.rooms, opt.cut]);
-  if (force || a !== sigArch){ sigArch = a; buildArch(); }
+  const a = JSON.stringify([state.rooms, state.demolished, opt.cut]) + layoutSig, f = JSON.stringify(state.furniture), l = JSON.stringify([state.rooms, opt.cut]) + layoutSig;
+  if (force || a !== sigArch){ sigArch = a; [OX, OY] = layoutCenter(); buildArch(); }
   if (force || f !== sigFurn){ sigFurn = f; buildFurn(); }
   if (force || l !== sigLabels){ sigLabels = l; buildLabels(); }
 }
@@ -2698,7 +2908,7 @@ function setMode(m){
     window.select(null);
     if (opt.cut < H){ opt.cut = H; syncCutBtns(); sync(); }
     orbit.enabled = false; fly = null;
-    camera.position.set(wx(4200), 1.6, wz(8755)); camera.lookAt(wx(7000), 1.5, wz(8755));   // 入户门外
+    const [[sx, sy], [lx, ly]] = LAYOUT.walk; camera.position.set(wx(sx), 1.6, wz(sy)); camera.lookAt(wx(lx), 1.5, wz(ly));   // 入户门外
     $('#walkOverlay').style.display = 'flex';
     syncHint3d();
   } else {
