@@ -286,6 +286,7 @@ main.drawer-panel #fab{opacity:0;visibility:hidden}
       <button class="btn chip on" data-layer="furn" data-en="Furniture">家具</button>
       <button class="btn chip" data-layer="grid" data-en="Grid">网格</button>
       <button class="btn chip" data-layer="bearing" data-en="Bearing walls">承重墙</button>
+      <button class="btn chip scan-only" data-layer="scan" title="半透明疊上掃描時的原始位置（鎖定，不能點選）" data-en-title="Overlay the original scanned positions (locked)" data-en="Scan overlay">掃描原圖</button>
       <button class="btn chip on" data-layer="wallSnap" title="拖动家具时贴墙吸附" data-en-title="Snap furniture to walls while dragging" data-en="Wall snap">贴墙吸附</button>
     </div>
     <div class="grp only3d">
@@ -296,6 +297,7 @@ main.drawer-panel #fab{opacity:0;visibility:hidden}
       <button class="btn chip on" data-t="furn" data-en="Furniture">家具</button>
       <button class="btn chip on" data-t="labels" data-en="Labels">房间名</button>
       <button class="btn chip" data-t="night" data-en="Night">夜景</button>
+      <button class="btn chip scan-only" data-t="scan" data-en="Scan overlay">掃描原圖</button>
     </div>
     <div class="grp only3d"><label class="range"><span data-en="Sun">日照</span> <input type="range" id="sun" min="7" max="18" step=".25" value="10" style="width:84px"><span id="sunT">10:00</span></label></div>
     <div class="spacer"></div>
@@ -335,6 +337,7 @@ main.drawer-panel #fab{opacity:0;visibility:hidden}
       <g id="gFurn"></g>
       <g id="gWalls"></g>
       <g id="gOpen"></g>
+      <g id="gScan" pointer-events="none"></g>
       <g id="gLabels" pointer-events="none"></g>
       <g id="gDims" pointer-events="none"></g>
       <g id="gMeasure" pointer-events="none"></g>
@@ -520,6 +523,7 @@ function applyLayout(L){
   else { const [x0, y0, x1, y1] = bboxOf(WALLS); Object.assign(BOUNDS, {x:x0 - 1700, y:y0 - 1700, w:x1 - x0 + 3400, h:y1 - y0 + 3400}); }
   layoutRef = state?.layout;
   renderOpenings(); renderDims();
+  document.querySelectorAll('.scan-only').forEach(b => b.hidden = !LAYOUT.scan);
   const sig = L ? JSON.stringify(L) : '';
   if (sig !== layoutSig){ layoutSig = sig; ui.sel = null; fitView(); }   // 換了格局才重新取景，撤銷等不跳畫面
 }
@@ -632,7 +636,7 @@ const svg = $('#plan');
 /* ======================= 状态 / 历史 / 存储 ======================= */
 let state = load() || defaultState();
 const ui = {tool:'select', sel:null, mA:null, mCur:null,
-  layers:{dims:true, labels:true, furn:true, grid:false, bearing:false, wallSnap:true}};
+  layers:{dims:true, labels:true, furn:true, grid:false, bearing:false, wallSnap:true, scan:false}};
 let view = {x0:0, y0:0, s:.06};
 const undoStack = [], redoStack = [];
 
@@ -883,6 +887,24 @@ function renderDims(){
   g.setAttribute('display', ui.layers.dims ? 'inline' : 'none');
 }
 
+// 掃描原圖：牆紅、門橘、窗藍、開口綠、家具紫色虛線，只看不能點
+const SCAN_C = {wall:'#d6336c', door:'#e8590c', window:'#1c7ed6', opening:'#2b8a3e', furn:'#9c36b5'};
+function renderScan(){
+  const g = $('#gScan'), sc = LAYOUT.scan, on = ui.layers.scan && sc;
+  g.setAttribute('display', on ? 'inline' : 'none');
+  if (!on) return void (g.innerHTML = '');
+  const pts = q => q.map(p => p.join(',')).join(' ');
+  g.innerHTML = `<polygon points="${pts(sc.floor)}" fill="none" stroke="${SCAN_C.wall}" stroke-width="1" stroke-dasharray="8 5" vector-effect="non-scaling-stroke" opacity=".6"/>` +
+    sc.items.map(it => {
+      const c = SCAN_C[it.k], S = `stroke="${c}" stroke-width="${it.k === 'furn' ? 1.2 : 2}" vector-effect="non-scaling-stroke"`;
+      let s = it.q.length === 2 ? `<polyline points="${pts(it.q)}" fill="none" ${S}/>`
+        : `<polygon points="${pts(it.q)}" fill="${c}" fill-opacity="${it.k === 'furn' ? .1 : .35}" ${S} ${it.k === 'furn' ? 'stroke-dasharray="5 3"' : ''}/>`;
+      if (it.n){ const [x, y] = it.q.reduce((a, p) => [a[0] + p[0]/it.q.length, a[1] + p[1]/it.q.length], [0, 0]);
+        s += `<text x="${x}" y="${y}" font-size="110" text-anchor="middle" dominant-baseline="central" fill="${c}" stroke="#fff" stroke-width="25" paint-order="stroke">${esc(nm(it.n))}</text>`; }
+      return s;
+    }).join('');
+}
+
 function renderGrid(){
   $('#gGrid').innerHTML = `<rect x="-20000" y="-20000" width="55000" height="55000" fill="${ui.layers.grid ? 'url(#grid)' : 'transparent'}" data-bg="1"/>`;
 }
@@ -933,7 +955,7 @@ function renderSel(){
 
 function renderAll(){
   if (state.layout !== layoutRef) applyLayout(state.layout);   // 開啟方案 / 撤銷 / 匯入後格局可能換了
-  renderGrid(); renderRooms(); renderFurn(); renderWalls(); renderLabels(); renderMeasure(); renderSel(); renderPanel(); updateHeader();
+  renderGrid(); renderRooms(); renderFurn(); renderWalls(); renderScan(); renderLabels(); renderMeasure(); renderSel(); renderPanel(); updateHeader();
   window.View3D?.sync();
 }
 
@@ -1603,6 +1625,19 @@ function scanToPlan(items){
     if (Math.abs(t - 90) < 12) return {v:true, at:(a[0]+b[0])/2, lo:Math.min(a[1], b[1]), hi:Math.max(a[1], b[1])};
     return null;
   };
+  // 掃描原圖：每個物件原本的外框（只轉正，不對齊），之後疊在平面 / 3D 上對照用
+  const KIND = {Wall:'wall', Door:'door', Window:'window', Opening:'opening'}, ref = [];
+  items.forEach(e => {
+    const k = KIND[e.cat] || (SCAN_FURN[e.cat] ? 'furn' : null); if (!k) return;
+    let q, z = [0, 2.4];
+    if (e.s){
+      const [cx, cy] = P(e.m[3][0], e.m[3][2]), u = P(e.m[0][0], e.m[0][2]), v = P(e.m[2][0], e.m[2][2]), nu = Math.hypot(...u), nv = Math.hypot(...v);
+      const hw = e.s[0]*500, hd = Math.max(e.s[2]*500, 15);
+      q = [[-1, -1], [1, -1], [1, 1], [-1, 1]].map(([a, b]) => [cx + u[0]/nu*a*hw + v[0]/nv*b*hd, cy + u[1]/nu*a*hw + v[1]/nv*b*hd]);
+      z = [e.m[3][1] - e.s[1]/2 - floorY, e.m[3][1] + e.s[1]/2 - floorY];
+    } else if (!(q = seg(e))) return;
+    ref.push({k, n:k === 'furn' ? SCAN_FURN[e.cat][1] : '', q, z:z.map(v => Math.round(v*100)/100)});
+  });
   let dropped = 0;
   const W = [];
   walls.forEach(e => { const g = seg(e), a = g && axis(g); if (a && a.hi - a.lo > 150) W.push({...a, cuts:[]}); else dropped++; });
@@ -1695,7 +1730,8 @@ function scanToPlan(items){
   return {
     layout:{walls:walls2.map(mv), wins:wins.map(mv), slides:slides.map(d => ({...d, rect:mv(d.rect)})), lintels:lintels.map(([r, h]) => [mv(r), h]),
       doors:doors.map(d => ({...d, rect:mv(d.rect), h:mp(d.h)})), rooms:[{id:'scan', name:'室內', poly:ply, mat:'wood', at}],
-      walk:[at, [at[0] + 1000, at[1]]], scanAngle:best},
+      walk:[at, [at[0] + 1000, at[1]]], scanAngle:best,
+      scan:{floor:ply, items:ref.map(it => ({...it, q:it.q.map(mp)}))}},
     furniture, dropped,
   };
 }
@@ -1860,11 +1896,11 @@ const H = 2.8, FOV = 45;                              // 户型中心放在世�
 let [OX, OY] = layoutCenter();
 const wx = x => (x - OX) / 1000, wz = y => (y - OY) / 1000, M = v => v / 1000;
 const SW = () => stage.clientWidth, SH = () => stage.clientHeight;
-const opt = {cut:2.8, furn:true, labels:true, night:false, hour:10, mode:'orbit'};
+const opt = {cut:2.8, furn:true, labels:true, night:false, hour:10, mode:'orbit', scan:false};
 
 let inited = false, active = false, raf = 0, anim = null, fly = null;
 let renderer, labelRenderer, scene, camera, orbit, walkCtl, hemi, sun, ground, glassMat, wallMat, capMat, frameMat;
-let archFloor, archUp, furnG, labelG, lampG, colliders = [], selKey = null, selHelper = null;
+let archFloor, archUp, furnG, labelG, lampG, scanG, colliders = [], selKey = null, selHelper = null;
 let sigArch = '', sigFurn = '', sigLabels = '', grow = 1, furnGrow = 1;
 const doors = [], keys = {};
 
@@ -1904,7 +1940,8 @@ function init(){
   wallMat = mat('#f4f1eb', {roughness:.92}); capMat = mat('#34312d', {roughness:.9}); frameMat = mat('#5d6166', {roughness:.5, metalness:.4});
 
   archFloor = new THREE.Group(); archUp = new THREE.Group(); furnG = new THREE.Group(); labelG = new THREE.Group(); lampG = new THREE.Group();
-  scene.add(archFloor, archUp, furnG, labelG, lampG);
+  scanG = new THREE.Group(); scanG.visible = opt.scan;
+  scene.add(archFloor, archUp, furnG, labelG, lampG, scanG);
 
   const cv = renderer.domElement; let downAt = null, look = null;
   cv.addEventListener('pointerdown', e => {
@@ -2686,6 +2723,23 @@ function buildArch(){
   applyLight(); applyGrow();
 }
 
+// 掃描原圖：半透明方塊 + 永遠看得到的外框線；不加進點選 / 碰撞，等於鎖定
+const scanMats = {};
+function buildScan(){
+  clearGroup(scanG); const sc = LAYOUT.scan; if (!sc) return;
+  sc.items.forEach(it => {
+    const c = SCAN_C[it.k], m = scanMats[it.k] ||= [
+      new THREE.MeshBasicMaterial({color:c, transparent:true, opacity:it.k === 'furn' ? .12 : .22, depthWrite:false, side:THREE.DoubleSide}),
+      new THREE.LineBasicMaterial({color:c, transparent:true, opacity:.9, depthTest:false})];
+    const [a, b] = it.q, d = it.q.length === 4 ? Math.hypot(it.q[2][0]-b[0], it.q[2][1]-b[1]) : 10;
+    const cx = it.q.reduce((s, p) => s + p[0], 0)/it.q.length, cy = it.q.reduce((s, p) => s + p[1], 0)/it.q.length;
+    const h = Math.max(.02, it.z[1] - it.z[0]), geo = new THREE.BoxGeometry(M(Math.hypot(b[0]-a[0], b[1]-a[1])), h, Math.max(M(d), .01));
+    [new THREE.Mesh(geo, m[0]), new THREE.LineSegments(new THREE.EdgesGeometry(geo), m[1])].forEach(o => {
+      o.position.set(wx(cx), it.z[0] + h/2, wz(cy)); o.rotation.y = -Math.atan2(b[1]-a[1], b[0]-a[0]); o.renderOrder = 5; scanG.add(o);
+    });
+  });
+}
+
 function buildFurn(){
   clearGroup(furnG);
   state.furniture.forEach(f => furnG.add(buildFurniture(f)));
@@ -2713,7 +2767,7 @@ function buildLabels(){
 function sync(force){
   if (!inited || (!active && !force)) return;
   const a = JSON.stringify([state.rooms, state.demolished, opt.cut]) + layoutSig, f = JSON.stringify(state.furniture), l = JSON.stringify([state.rooms, opt.cut]) + layoutSig;
-  if (force || a !== sigArch){ sigArch = a; [OX, OY] = layoutCenter(); buildArch(); }
+  if (force || a !== sigArch){ sigArch = a; [OX, OY] = layoutCenter(); buildArch(); buildScan(); }
   if (force || f !== sigFurn){ sigFurn = f; buildFurn(); }
   if (force || l !== sigLabels){ sigLabels = l; buildLabels(); }
 }
@@ -2980,6 +3034,7 @@ function bindUI(){
     if (k === 'furn'){ furnG.visible = opt.furn; if (!opt.furn && ui.sel?.kind === 'furn') window.select(null); }
     if (k === 'labels') showLabels(opt.labels && opt.mode === 'orbit' && !anim);
     if (k === 'night') applyLight();
+    if (k === 'scan') scanG.visible = opt.scan;
   });
   $('#sun').oninput = e => { opt.hour = +e.target.value; applyLight(); };
 }
