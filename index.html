@@ -64,7 +64,7 @@ main{position:relative;overflow:hidden;background:var(--paper)}
 #plan .ophit{pointer-events:none}
 #plan.tool-wall .ophit{pointer-events:all;cursor:move}
 #plan.tool-wall .ophit:hover{fill:rgba(181,101,58,.25)}
-#plan.tool-drawwall{cursor:crosshair}
+#plan.tool-drawwall,#plan.tool-drawdiag{cursor:crosshair}
 #plan.tool-select .room:hover{opacity:.82}
 #plan .furn{cursor:move}
 @media (hover:hover){#plan .furn:hover{filter:drop-shadow(0 0 2px rgba(181,101,58,.7))}}
@@ -275,6 +275,7 @@ main.drawer-panel #fab{opacity:0;visibility:hidden}
       <button class="btn" data-tool="demolish" title="拆改非承重墙 (X)" data-en-title="Demolish non-bearing walls (X)" data-en="Demolish">拆改墙体</button>
       <button class="btn" data-tool="wall" title="編輯牆與門窗：拖動、改長短、加門窗 (W)" data-en-title="Edit walls, doors and windows (W)" data-en="Edit walls">編輯牆</button>
       <button class="btn" data-tool="drawwall" title="拖出一面新牆 (B)" data-en-title="Drag to draw a new wall (B)" data-en="Draw wall">畫牆</button>
+      <button class="btn" data-tool="drawdiag" title="拖出一面斜牆，角度每 15° 吸附，Shift 自由角度 (N)" data-en-title="Drag to draw a diagonal wall, snaps every 15°, Shift for free angle (N)" data-en="Diagonal wall">斜牆</button>
     </div>
     <div class="grp only2d">
       <button class="btn" id="zoomOut" title="缩小" data-en-title="Zoom out">−</button>
@@ -540,6 +541,7 @@ WINS = WINS.map((w, i) => [...w, i === 0 ? 1.4 : i >= 6 ? .45 : .9, 2.4]);
 const BASE_LAYOUT = {walls:WALLS, wins:WINS, doors:DOORS, slides:SLIDES, rooms:ROOMS, entry:true,
   lintels:[[[10270,800,10510,2600], 2.4], [[10270,4260,10510,5740], 2.4]], walk:[[4200,8755],[7000,8755]]};
 let LAYOUT = BASE_LAYOUT, layoutRef, layoutSig = '', layoutId = 'base';
+const allWallBoxes = () => [...WALLS, ...(LAYOUT.diag || []).map(diagBox)];
 function bboxOf(rects){
   const b = [Infinity, Infinity, -Infinity, -Infinity];
   rects.forEach(r => { b[0] = Math.min(b[0], r[0]); b[1] = Math.min(b[1], r[1]); b[2] = Math.max(b[2], r[2]); b[3] = Math.max(b[3], r[3]); });
@@ -550,7 +552,7 @@ function applyLayout(L){
   LAYOUT = L || BASE_LAYOUT;
   ({walls:WALLS, wins:WINS, doors:DOORS, slides:SLIDES, rooms:ROOMS} = LAYOUT);
   if (LAYOUT === BASE_LAYOUT) Object.assign(BOUNDS, {x:-1850, y:-1750, w:15600, h:14100});   // 編輯過的預設戶型也走下面，範圍跟著牆
-  else { const [x0, y0, x1, y1] = bboxOf(WALLS); Object.assign(BOUNDS, {x:x0 - 1700, y:y0 - 1700, w:x1 - x0 + 3400, h:y1 - y0 + 3400}); }
+  else { const [x0, y0, x1, y1] = bboxOf(allWallBoxes()); Object.assign(BOUNDS, {x:x0 - 1700, y:y0 - 1700, w:x1 - x0 + 3400, h:y1 - y0 + 3400}); }
   layoutRef = state?.layout;
   renderOpenings(); renderDims();
   document.querySelectorAll('.scan-only').forEach(b => b.hidden = !LAYOUT.scan);
@@ -558,7 +560,7 @@ function applyLayout(L){
   const id = L ? L.id || 'scan' : 'base';     // 換成另一個格局才重新取景；編輯牆、撤銷都不跳畫面
   if (id !== layoutId){ layoutId = id; ui.sel = null; fitView(); }
 }
-const layoutCenter = () => LAYOUT === BASE_LAYOUT || LAYOUT.id === 'base' ? [6000, 5300] : (b => [(b[0]+b[2])/2, (b[1]+b[3])/2])(bboxOf(WALLS));
+const layoutCenter = () => LAYOUT === BASE_LAYOUT || LAYOUT.id === 'base' ? [6000, 5300] : (b => [(b[0]+b[2])/2, (b[1]+b[3])/2])(bboxOf(allWallBoxes()));
 const MATS = {
   wood:    {name:'橡木地板', price:320, sw:'#d8b88a'},
   walnut:  {name:'胡桃木地板', price:380, sw:'#9b7250'},
@@ -677,7 +679,7 @@ function commit(before){ undoStack.push(before); if (undoStack.length > 150) und
 function mutate(fn){ const b = snap(); fn(); commit(b); renderAll(); }
 function undo(){ if (!undoStack.length) return toast(tr('没有可撤销的操作', 'Nothing to undo')); redoStack.push(snap()); state = JSON.parse(undoStack.pop()); validateSel(); save(); renderAll(); }
 function redo(){ if (!redoStack.length) return; undoStack.push(snap()); state = JSON.parse(redoStack.pop()); validateSel(); save(); renderAll(); }
-function validateSel(){ if ((ui.sel?.kind==='furn' && !getF(ui.sel.id)) || ((ui.sel?.kind==='wall' || ui.sel?.kind==='op') && !partOf(state.layout || BASE_LAYOUT, ui.sel))) ui.sel = null; }
+function validateSel(){ if ((ui.sel?.kind==='furn' && !getF(ui.sel.id)) || ((ui.sel?.kind==='wall' || ui.sel?.kind==='op') && !partOf(state.layout || BASE_LAYOUT, ui.sel)) || (ui.sel?.kind === 'diag' && !state.layout?.diag?.[ui.sel.i])) ui.sel = null; }
 const getF = id => state.furniture.find(f => f.id === id);
 
 /* ======================= 几何工具 ======================= */
@@ -853,7 +855,7 @@ function renderWalls(){
     let ex = k==='low' ? 'stroke="#8f897d" stroke-width="1" vector-effect="non-scaling-stroke"' : '';
     if (dem){ fill = 'rgba(198,91,58,.12)'; ex = 'stroke="#c65b3a" stroke-width="1.2" stroke-dasharray="5 3" vector-effect="non-scaling-stroke"'; }
     return `<rect class="wall" data-wall="${id}" x="${x0}" y="${y0}" width="${x1-x0}" height="${y1-y0}" fill="${fill}" ${ex}/>`;
-  }).join('');
+  }).join('') + (LAYOUT.diag || []).map((d, i) => `<polygon class="wall" data-diag="${i}" points="${diagPoly(d).map(p => p.join(',')).join(' ')}" fill="#a7a195"/>`).join('');
 }
 
 function renderOpenings(){
@@ -914,7 +916,7 @@ function renderDims(){
   };
   const g = $('#gDims');
   if (LAYOUT !== BASE_LAYOUT){   // 匯入的格局：標總長、總寬
-    const [x0, y0, x1, y1] = bboxOf(WALLS).map(Math.round);
+    const [x0, y0, x1, y1] = bboxOf(allWallBoxes()).map(Math.round);
     g.innerHTML = chain(true, y0 - 700, x0, [x1 - x0]) + chain(false, x0 - 700, y0, [y1 - y0]);
   } else g.innerHTML =
     chain(true,-750,0,[1580,240,2760,240,1540,240,3670]) + chain(true,-1250,0,[10270]) +
@@ -999,6 +1001,20 @@ function renderSel(){
     s += `<text x="${tx}" y="${ty}" font-size="${12*k}" text-anchor="${hz ? 'middle' : 'start'}" fill="#b5653a" font-weight="600" pointer-events="none"
       stroke="#fff" stroke-width="${3*k}" paint-order="stroke">${L} mm</text>`;
   }
+  else if (selDiag()){
+    const d = selDiag(), A = 'stroke="#b5653a" vector-effect="non-scaling-stroke"', r = (COARSE ? 9 : 6)*k, hit = (COARSE ? 24 : 12)*k;
+    s += `<polygon points="${diagPoly(d).map(p => p.join(',')).join(' ')}" fill="rgba(181,101,58,.18)" ${A} stroke-width="2" pointer-events="none"/>`;
+    [['dlo', d[0], d[1]], ['dhi', d[2], d[3]]].forEach(([n, x, y]) =>
+      s += `<circle data-handle="${n}" cx="${x}" cy="${y}" r="${hit}" fill="transparent"/><circle data-handle="${n}" cx="${x}" cy="${y}" r="${r}" fill="#fff" ${A} stroke-width="2"><title>${tr('拖動端點改長度和角度', 'Drag to change length and angle')}</title></circle>`);
+  }
+  const seg = ui.drawSeg || selDiag();
+  if (seg){                                    // 斜牆標長度和角度
+    const L = diagLen(seg), mx = (seg[0]+seg[2])/2, my = (seg[1]+seg[3])/2;
+    let a = diagAng(seg); if (a > 90 || a < -90) a += 180;
+    if (ui.drawSeg) s += `<polygon points="${diagPoly(seg).map(p => p.join(',')).join(' ')}" fill="rgba(181,101,58,.45)" stroke="#b5653a" stroke-width="1.5" vector-effect="non-scaling-stroke" pointer-events="none"/>`;
+    if (L > 1) s += `<text x="${mx}" y="${my - seg[4]/2 - 10*k}" font-size="${12*k}" text-anchor="middle" fill="#b5653a" font-weight="600" stroke="#fff" stroke-width="${3*k}" paint-order="stroke" pointer-events="none"
+      transform="rotate(${a} ${mx} ${my})">${Math.round(L)} mm · ${Math.abs(diagAng(seg))}°</text>`;
+  }
   if (ui.drawRect){
     const [x0, y0, x1, y1] = ui.drawRect, hz = isH(ui.drawRect);
     s += `<rect x="${x0}" y="${y0}" width="${x1-x0}" height="${y1-y0}" fill="rgba(181,101,58,.45)" stroke="#b5653a" stroke-width="1.5" vector-effect="non-scaling-stroke" pointer-events="none"/>
@@ -1029,6 +1045,7 @@ function renderPanel(){
   if (ui.sel?.kind === 'furn'){ const f = getF(ui.sel.id); if (f){ p.innerHTML = furnPanel(f); bindFurnPanel(f); return; } }
   if (ui.sel?.kind === 'room'){ p.innerHTML = roomPanel(ROOMS.find(r => r.id === ui.sel.id)); bindRoomPanel(); return; }
   if (selPart()){ p.innerHTML = wallPanel(selPart()); bindWallPanel(selPart()); return; }
+  if (selDiag()){ p.innerHTML = diagPanel(selDiag()); bindDiagPanel(); return; }
   p.innerHTML = overviewPanel(); bindOverview();
 }
 
@@ -1092,10 +1109,10 @@ function bindOverview(){
 
 // 底部浮动工具条：触屏没有键盘，旋转 / 复制 / 删除都放在这里
 function renderFab(){
-  const fab = $('#fab'), f = ui.sel?.kind === 'furn' && getF(ui.sel.id), r = ui.sel?.kind === 'room' && ROOMS.find(r => r.id === ui.sel.id), w = selPart();
+  const fab = $('#fab'), f = ui.sel?.kind === 'furn' && getF(ui.sel.id), r = ui.sel?.kind === 'room' && ROOMS.find(r => r.id === ui.sel.id), w = selPart() || (selDiag() && {t:'diag'});
   if (!f && !r && !w){ fab.classList.remove('show'); return; }
   fab.innerHTML = w
-    ? `<span class="name">${w.t === 'wall' ? wallName(w.r) : tr(...OP_NAME[w.t])}</span>${w.t === 'wall' ? `<button class="btn" data-a="door">${tr('＋門', '+Door')}</button><button class="btn" data-a="win">${tr('＋窗', '+Window')}</button>` : ''}
+    ? `<span class="name">${w.t === 'wall' ? wallName(w.r) : w.t === 'diag' ? tr('斜牆', 'Diagonal wall') : tr(...OP_NAME[w.t])}</span>${w.t === 'wall' ? `<button class="btn" data-a="door">${tr('＋門', '+Door')}</button><button class="btn" data-a="win">${tr('＋窗', '+Window')}</button>` : ''}
        ${w.t === 'door' ? `<button class="btn" data-a="flip">${tr('換方向', 'Flip')}</button>` : ''}<button class="btn danger" data-a="del">${tr('刪除', 'Delete')}</button><span class="sep"></span>
        <button class="btn narrow-only" data-a="prop">${tr('屬性', 'Properties')}</button><button class="btn" data-a="done">${tr('完成', 'Done')}</button>`
     : f
@@ -1221,6 +1238,28 @@ function bindWallPanel(e){
   }
   $('#back').onclick = () => select(null);
 }
+function diagPanel(d){
+  const num = (id, label, v, step = 10) => `<label>${label}<input type="number" id="${id}" value="${v}" step="${step}"></label>`;
+  return `<section><h3>${tr('斜牆', 'Diagonal wall')}</h3>
+    <div class="form">
+      ${num('dLen', tr('長度', 'Length') + ' (mm)', Math.round(diagLen(d)))}${num('dAng', tr('角度（順時針）', 'Angle (clockwise)') + ' (°)', diagAng(d), 1)}
+      ${num('dTh', tr('厚度', 'Thickness') + ' (mm)', d[4])}<span></span>
+      ${num('dX', tr('起點', 'Start') + ' X (mm)', d[0])}${num('dY', tr('起點', 'Start') + ' Y (mm)', d[1])}
+    </div>
+    <div class="actions">
+      <button class="btn danger" id="dDel">${tr('刪除這面牆', 'Delete wall')}</button><button class="btn" id="back">${tr('← 返回', '← Back')}</button>
+    </div></section>
+  <section class="muted" style="font-size:12px">${tr('拖動牆身平移；拖兩端圓點改長度和角度，靠近牆角、其他牆的端點或掃描原圖的牆會自動吸附。斜牆上不能開門窗。', 'Drag to move; drag the end dots to change length and angle (snaps to corners, wall ends and the scan overlay). Diagonal walls cannot hold doors or windows.')}</section>`;
+}
+function bindDiagPanel(){
+  const i = ui.sel.i, num = (id, fn) => $(id).onchange = ev => { const v = parseFloat(ev.target.value); if (!isNaN(v)) editLayout(L => fn(L.diag[i], v)); };
+  num('#dLen', (d, v) => setDiag(d, Math.max(50, v), diagAng(d)));
+  num('#dAng', (d, v) => setDiag(d, diagLen(d), v));
+  num('#dTh', (d, v) => d[4] = Math.max(20, Math.round(v)));
+  num('#dX', (d, v) => { const dx = Math.round(v) - d[0]; d[0] += dx; d[2] += dx; });
+  num('#dY', (d, v) => { const dy = Math.round(v) - d[1]; d[1] += dy; d[3] += dy; });
+  $('#dDel').onclick = deleteSel; $('#back').onclick = () => select(null);
+}
 function addOp(kind){
   if (ui.sel?.kind !== 'wall') return;
   const b = snap(), L = ensureLayout(), sel = addOpening(L, ui.sel.i, kind);
@@ -1268,6 +1307,7 @@ function select(sel){ ui.sel = sel; renderSel(); renderPanel(); }
 function rotateSel(d){ if (ui.sel?.kind==='furn') mutate(() => { const f = getF(ui.sel.id); f.rot = norm(f.rot + d); }); }
 function deleteSel(){
   if (selPart()){ const s = ui.sel; ui.sel = null; editLayout(L => s.kind === 'wall' ? deleteWall(L, s.i) : deleteOp(L, s)); return; }
+  if (selDiag()){ const i = ui.sel.i; ui.sel = null; editLayout(L => deleteDiag(L, i)); return; }
   if (ui.sel?.kind==='furn'){ const id = ui.sel.id; ui.sel = null; mutate(() => state.furniture = state.furniture.filter(f => f.id !== id)); } }
 function duplicateSel(){
   if (ui.sel?.kind !== 'furn') return;
@@ -1305,11 +1345,11 @@ function toggleWall(id){
 }
 
 function setTool(t){
-  ui.tool = t; ui.mA = null; ui.mCur = null; ui.drawRect = null;
-  if ((t === 'wall' || t === 'drawwall') && LAYOUT.scan && !ui.layers.scan){   // 改牆時順便打開掃描原圖對照
+  ui.tool = t; ui.mA = null; ui.mCur = null; ui.drawRect = ui.drawSeg = null;
+  if ((t === 'wall' || t === 'drawwall' || t === 'drawdiag') && LAYOUT.scan && !ui.layers.scan){   // 改牆時順便打開掃描原圖對照
     ui.layers.scan = true; document.querySelector('[data-layer=scan]')?.classList.add('on'); renderScan();
   }
-  if (ui.sel && (t === 'wall') !== (ui.sel.kind === 'wall' || ui.sel.kind === 'op')) select(null);
+  if (ui.sel && (t === 'wall') !== ['wall', 'op', 'diag'].includes(ui.sel.kind)) select(null);
   svg.setAttribute('class', 'tool-' + t);
   document.querySelectorAll('#tools .btn').forEach(b => b.classList.toggle('on', b.dataset.tool === t));
   syncModeHint();
@@ -1321,7 +1361,8 @@ function syncModeHint(){
       : tr('点击两点（或按住拖动）测量距离 · 靠近墙面自动吸附 · Shift 锁定水平/垂直 · Esc 取消', 'Click two points (or drag) to measure · snaps to walls · Shift locks horizontal/vertical · Esc cancels'),
     demolish:tr('点击灰色非承重墙标记拆除，再次点击恢复 · 黑色承重墙不可拆', 'Click a grey non-bearing wall to remove it, click again to restore · black bearing walls cannot be removed'),
     wall:tr('點牆或門窗選取 · 拖動平移，拖兩端圓點改長短 · 右側可輸入數字、加門窗 · Esc 結束', 'Tap a wall, door or window · drag to move, drag end dots to resize · add doors/windows in the panel · Esc to exit'),
-    drawwall:tr('按住拖出一面牆（自動水平 / 垂直，會吸附到其他牆）· Esc 結束', 'Drag to draw a wall (auto horizontal / vertical, snaps to walls) · Esc to exit')};
+    drawwall:tr('按住拖出一面牆（自動水平 / 垂直，會吸附到其他牆）· Esc 結束', 'Drag to draw a wall (auto horizontal / vertical, snaps to walls) · Esc to exit'),
+    drawdiag:tr('按住拖出斜牆 · 角度每 15° 吸附，靠近牆角會接上 · Shift 自由角度 · Esc 結束', 'Drag to draw a diagonal wall · snaps every 15° and to corners · Shift for free angle · Esc to exit')};
   const h = $('#modehint'); h.textContent = hints[ui.tool]; h.classList.toggle('show', !!hints[ui.tool]);
 }
 
@@ -1490,6 +1531,42 @@ function snapTo(v, cands){
 const wallName = r => tr(isH(r) ? '水平牆' : '垂直牆', isH(r) ? 'Horizontal wall' : 'Vertical wall');
 const OP_NAME = {door:['門', 'Door'], win:['窗', 'Window'], slide:['推拉門', 'Sliding door'], lintel:['開口', 'Opening']};
 function selPart(){ return (ui.sel?.kind === 'wall' || ui.sel?.kind === 'op') && partOf(LAYOUT, ui.sel); }
+// 斜牆：L.diag 裡每面是 [x0,y0,x1,y1,厚度]，存中線兩端；跟直牆分開，不能開門窗
+const diagLen = d => Math.hypot(d[2]-d[0], d[3]-d[1]);
+const diagAng = d => Math.round(Math.atan2(d[3]-d[1], d[2]-d[0])*1800/Math.PI)/10;
+const diagBox = d => [Math.min(d[0], d[2]), Math.min(d[1], d[3]), Math.max(d[0], d[2]), Math.max(d[1], d[3])];
+function diagPoly(d){
+  const L = diagLen(d) || 1, nx = -(d[3]-d[1])/L*d[4]/2, ny = (d[2]-d[0])/L*d[4]/2;
+  return [[d[0]+nx, d[1]+ny], [d[2]+nx, d[3]+ny], [d[2]-nx, d[3]-ny], [d[0]-nx, d[1]-ny]];
+}
+function selDiag(){ return ui.sel?.kind === 'diag' && LAYOUT.diag?.[ui.sel.i]; }
+// 斜牆端點吸附：直牆的牆角和兩端、其他斜牆端點、掃描原圖牆線的兩端
+function ptCands(skip){
+  const out = [];
+  WALLS.forEach(w => { const cx = (w[0]+w[2])/2, cy = (w[1]+w[3])/2;
+    out.push([w[0], w[1]], [w[2], w[1]], [w[2], w[3]], [w[0], w[3]], ...(isH(w) ? [[w[0], cy], [w[2], cy]] : [[cx, w[1]], [cx, w[3]]])); });
+  (LAYOUT.diag || []).forEach(d => { if (d !== skip) out.push([d[0], d[1]], [d[2], d[3]]); });
+  LAYOUT.scan?.items.forEach(it => {
+    if (it.k !== 'wall') return; const q = it.q;
+    if (q.length === 4) out.push([(q[0][0]+q[3][0])/2, (q[0][1]+q[3][1])/2], [(q[1][0]+q[2][0])/2, (q[1][1]+q[2][1])/2]); else out.push(...q);
+  });
+  return out;
+}
+function snapPt(p, cands){
+  let best = null, bd = 10/view.s;
+  cands.forEach(c => { const d = Math.hypot(c[0]-p.x, c[1]-p.y); if (d < bd){ bd = d; best = c; } });
+  return best && {x:Math.round(best[0]), y:Math.round(best[1])};
+}
+// 畫斜牆的第二點：先吸附端點，否則角度每 15° 吸附（Shift 自由角度），長度取整 10 mm
+function diagEnd(a, p, free){
+  const s = snapPt(p, ptCands()); if (s) return s;
+  const L = Math.round(Math.hypot(p.x-a.x, p.y-a.y)/10)*10; let t = Math.atan2(p.y-a.y, p.x-a.x);
+  if (!free) t = Math.round(t*12/Math.PI)*Math.PI/12;
+  return {x:Math.round(a.x + Math.cos(t)*L), y:Math.round(a.y + Math.sin(t)*L)};
+}
+// 改長度或角度都以起點為準
+function setDiag(d, len, ang){ const t = ang*Math.PI/180; d[2] = Math.round(d[0] + Math.cos(t)*len); d[3] = Math.round(d[1] + Math.sin(t)*len); }
+function deleteDiag(L, i){ L.diag.splice(i, 1); }
 
 /* ======================= 指针交互 ======================= */
 let drag = null, pinch = null;
@@ -1513,6 +1590,15 @@ function endDrag(cancel){
   if (d.kind === 'pan'){
     if (!cancel && !d.moved && ui.tool === 'select') select(d.room ? {kind:'room', id:d.room} : null);
     if (!cancel && !d.moved && ui.tool === 'wall') select(null);
+    return;
+  }
+  if (d.kind === 'draw' && d.diag){              // 畫成正好水平 / 垂直就當一般的牆，才能開門窗
+    const g = ui.drawSeg; ui.drawSeg = null;
+    if (cancel || !g || diagLen(g) < 200) return renderSel();
+    editLayout(L => {
+      if (g[0] === g[2] || g[1] === g[3]){ const b = diagBox(g); L.walls.push([b[0] - (g[0] === g[2] ? WT/2 : 0), b[1] - (g[1] === g[3] ? WT/2 : 0), b[2] + (g[0] === g[2] ? WT/2 : 0), b[3] + (g[1] === g[3] ? WT/2 : 0), 'n']); ui.sel = {kind:'wall', i:L.walls.length - 1}; }
+      else { (L.diag ||= []).push(g); ui.sel = {kind:'diag', i:L.diag.length - 1}; }
+    });
     return;
   }
   if (d.kind === 'draw'){
@@ -1550,6 +1636,16 @@ svg.addEventListener('pointerdown', e => {
   if (ui.tool === 'drawwall'){
     const a = {x:snapTo(p.x, lineCands(false)), y:snapTo(p.y, lineCands(true))};
     drag = {kind:'draw', a, sx:e.clientX, sy:e.clientY, moved:false}; ui.drawRect = null;
+  } else if (ui.tool === 'drawdiag'){
+    const a = snapPt(p, ptCands()) || {x:Math.round(p.x/10)*10, y:Math.round(p.y/10)*10};
+    drag = {kind:'draw', diag:true, a, sx:e.clientX, sy:e.clientY, moved:false}; ui.drawSeg = null;
+  } else if (h && ui.sel?.kind === 'diag'){            // 拖斜牆端點：改長度和角度
+    const before = snap(), d = ensureLayout().diag[ui.sel.i];
+    drag = {kind:'dend', wall:true, d, end:h.dataset.handle === 'dlo' ? 0 : 2, cands:ptCands(d), sx:e.clientX, sy:e.clientY, before, moved:false};
+  } else if (ui.tool === 'wall' && t.closest('[data-diag]')){
+    const before = snap(), i = +t.closest('[data-diag]').dataset.diag, d = ensureLayout().diag[i];
+    if (ui.sel?.kind !== 'diag' || ui.sel.i !== i) select({kind:'diag', i});
+    drag = {kind:'dmove', wall:true, d, o:d.slice(0, 4), p0:p, cands:ptCands(d), sx:e.clientX, sy:e.clientY, before, moved:false};
   } else if (h && ui.sel?.kind === 'wall'){            // 拖牆的端點：改長短
     const before = snap(), L = ensureLayout(), w = L.walls[ui.sel.i];
     drag = {kind:'wend', wall:true, end:h.dataset.handle === 'wlo' ? AX(isH(w))[0] : AX(isH(w))[1], w, cands:lineCands(!isH(w)), sx:e.clientX, sy:e.clientY, before, moved:false};
@@ -1602,6 +1698,11 @@ svg.addEventListener('pointermove', e => {
     drag.moved = true; svg.classList.add('panning');
     view.x0 = drag.x0 - (e.clientX-drag.sx)/view.s; view.y0 = drag.y0 - (e.clientY-drag.sy)/view.s; applyView(); return;
   }
+  if (drag.kind === 'draw' && drag.diag){
+    if (!drag.moved && !far) return; drag.moved = true;
+    const a = drag.a, b = diagEnd(a, p, e.shiftKey); ui.drawSeg = [a.x, a.y, b.x, b.y, WT];
+    renderSel(); return;
+  }
   if (drag.kind === 'draw'){                   // 畫牆：鎖水平或垂直，兩端吸附到其他牆
     if (!drag.moved && !far) return; drag.moved = true;
     const a = drag.a, b = {x:snapTo(p.x, lineCands(false)), y:snapTo(p.y, lineCands(true))}, hz = Math.abs(b.x - a.x) >= Math.abs(b.y - a.y);
@@ -1613,6 +1714,13 @@ svg.addEventListener('pointermove', e => {
     if (drag.kind === 'wmove'){
       const c = snapTo(drag.c0 + (drag.h ? p.y : p.x) - drag.p0, drag.cands), d = Math.round(c - drag.c0 - drag.applied);
       moveChain(LAYOUT, drag.ch, d); drag.applied += d;
+    } else if (drag.kind === 'dmove'){         // 整面平移，任一端靠近牆角就吸過去
+      const o = drag.o, mv = {x:Math.round((p.x - drag.p0.x)/10)*10, y:Math.round((p.y - drag.p0.y)/10)*10};
+      for (const k of [0, 2]){ const q = snapPt({x:o[k] + mv.x, y:o[k+1] + mv.y}, drag.cands); if (q){ mv.x = q.x - o[k]; mv.y = q.y - o[k+1]; break; } }
+      [0, 1, 2, 3].forEach(k => drag.d[k] = o[k] + (k % 2 ? mv.y : mv.x));
+    } else if (drag.kind === 'dend'){
+      const q = snapPt(p, drag.cands) || {x:Math.round(p.x/10)*10, y:Math.round(p.y/10)*10}, d = drag.d, o = 2 - drag.end;
+      if (Math.hypot(q.x - d[o], q.y - d[o+1]) >= 50){ d[drag.end] = q.x; d[drag.end + 1] = q.y; }
     } else if (drag.kind === 'omove'){
       drag.applied += slideOp(LAYOUT, drag.sel, Math.round(((drag.h ? p.x : p.y) - drag.p0)/10)*10 - drag.applied);
     } else {
@@ -1678,6 +1786,7 @@ document.addEventListener('keydown', e => {
   else if (k === 'x') setTool('demolish');
   else if (k === 'w') setTool('wall');
   else if (k === 'b') setTool('drawwall');
+  else if (k === 'n') setTool('drawdiag');
   else if (k === 'f') fitView();
   else if (k === 'r') rotateSel(e.shiftKey ? -90 : 90);
   else if (k === 'delete' || k === 'backspace'){ e.preventDefault(); deleteSel(); }
@@ -1686,6 +1795,10 @@ document.addEventListener('keydown', e => {
     e.preventDefault(); const st = e.shiftKey ? 100 : 10, s = ui.sel, hz = isH(selPart().r);
     const d = hz ? {arrowup:-st, arrowdown:st}[k] : {arrowleft:-st, arrowright:st}[k];
     if (d) editLayout(L => moveChain(L, chainOf(L, s), d));
+  }
+  else if (k.startsWith('arrow') && selDiag()){
+    e.preventDefault(); const st = e.shiftKey ? 100 : 10, i = ui.sel.i, dx = {arrowleft:-st, arrowright:st}[k] || 0, dy = {arrowup:-st, arrowdown:st}[k] || 0;
+    editLayout(L => { const d = L.diag[i]; d[0] += dx; d[2] += dx; d[1] += dy; d[3] += dy; });
   }
   else if (k.startsWith('arrow') && ui.sel?.kind === 'furn'){
     e.preventDefault(); const st = e.shiftKey ? 100 : 10;
@@ -1923,8 +2036,9 @@ function scanToPlan(items){
     ref.push({k, n:k === 'furn' ? SCAN_FURN[e.cat][1] : '', q, z:z.map(v => Math.round(v*100)/100)});
   });
   let dropped = 0;
-  const W = [];
-  walls.forEach(e => { const g = seg(e), a = g && axis(g); if (a && a.hi - a.lo > 150) W.push({...a, cuts:[]}); else dropped++; });
+  const W = [], diag = [];   // 太斜的牆（含弧形牆的弦）改成斜牆
+  walls.forEach(e => { const g = seg(e), a = g && axis(g);
+    if (a && a.hi - a.lo > 150) W.push({...a, cuts:[]}); else if (g && Math.hypot(g[1][0]-g[0][0], g[1][1]-g[0][1]) > 150) diag.push([...g[0], ...g[1], T]); else dropped++; });
   // 同一條線上、彼此相鄰的牆對齊到同一個座標
   [false, true].forEach(v => {
     const L = W.filter(w => w.v === v).sort((a, b) => a.at - b.at);
@@ -1981,7 +2095,7 @@ function scanToPlan(items){
       if (q.length > 2 && area(q) > bestA){ bestA = area(q); poly = q; }
     });
   }
-  const [bx0, by0, bx1, by1] = bboxOf(walls2);
+  const [bx0, by0, bx1, by1] = bboxOf([...walls2, ...diag.map(diagBox)]);
   if (!poly) poly = R(bx0, by0, bx1, by1);
   poly = poly.filter((p, i) => { const a = poly.at(i - 1), b = poly[(i + 1)%poly.length]; return Math.abs((p[0]-a[0])*(b[1]-a[1]) - (p[1]-a[1])*(b[0]-a[0])) > 2e4; });
   // 家具
@@ -2012,7 +2126,7 @@ function scanToPlan(items){
   furniture.forEach(f => { f.cx = rd(f.cx + dx); f.cy = rd(f.cy + dy); });
   const ply = poly.map(mp), at = ply.reduce((a, p) => [a[0] + p[0]/ply.length, a[1] + p[1]/ply.length], [0, 0]).map(rd);
   return {
-    layout:{walls:walls2.map(mv), wins:wins.map(mv), slides:slides.map(d => ({...d, rect:mv(d.rect)})), lintels:lintels.map(([r, h]) => [mv(r), h]),
+    layout:{walls:walls2.map(mv), diag:diag.map(mv), wins:wins.map(mv), slides:slides.map(d => ({...d, rect:mv(d.rect)})), lintels:lintels.map(([r, h]) => [mv(r), h]),
       doors:doors.map(d => ({...d, rect:mv(d.rect), h:mp(d.h)})), rooms:[{id:'scan', name:'室內', poly:ply, mat:'wood', at}],
       walk:[at, [at[0] + 1000, at[1]]], scanAngle:best, id:uid(),
       scan:{floor:ply, items:ref.map(it => ({...it, q:it.q.map(mp)}))}},
@@ -2269,7 +2383,7 @@ const opt = {cut:2.8, furn:true, labels:true, night:false, hour:10, mode:'orbit'
 
 let inited = false, active = false, raf = 0, anim = null, fly = null;
 let renderer, labelRenderer, scene, camera, orbit, walkCtl, hemi, sun, ground, glassMat, wallMat, capMat, frameMat;
-let archFloor, archUp, furnG, labelG, lampG, scanG, colliders = [], selKey = null, selHelper = null;
+let archFloor, archUp, furnG, labelG, lampG, scanG, colliders = [], segColliders = [], selKey = null, selHelper = null;
 let sigArch = '', sigFurn = '', sigLabels = '', grow = 1, furnGrow = 1;
 const doors = [], keys = {};
 
@@ -3015,22 +3129,22 @@ function buildFurniture(f){
 
 /* ======================= 建筑 ======================= */
 function clearGroup(g){ g.traverse(o => { if (o.geometry) o.geometry.dispose(); }); g.clear(); }
-function wallBox([x0, y0, x1, y1], yb, yt, m){
+function wallBox([x0, y0, x1, y1], yb, yt, m, ang = 0){
   if (yt - yb <= .001) return;
   const o = new THREE.Mesh(new THREE.BoxGeometry(M(x1-x0), yt-yb, M(y1-y0)), m || [wallMat, wallMat, capMat, wallMat, wallMat, wallMat]);
-  o.position.set(wx((x0+x1)/2), (yb+yt)/2, wz((y0+y1)/2)); o.castShadow = o.receiveShadow = true; archUp.add(o);
+  o.position.set(wx((x0+x1)/2), (yb+yt)/2, wz((y0+y1)/2)); o.rotation.y = ang; o.castShadow = o.receiveShadow = true; archUp.add(o);
   // 漫游辅助：墙体棱线 + 踢脚线，让相邻墙面、墙角一眼可分（仅漫游模式显示）
-  const ln = new THREE.LineSegments(new THREE.EdgesGeometry(o.geometry), edgeMat); ln.position.copy(o.position); ln.userData.walkOnly = true; ln.visible = opt.mode === 'walk'; archUp.add(ln);
+  const ln = new THREE.LineSegments(new THREE.EdgesGeometry(o.geometry), edgeMat); ln.position.copy(o.position); ln.rotation.y = ang; ln.userData.walkOnly = true; ln.visible = opt.mode === 'walk'; archUp.add(ln);
   if (yb <= .001){
     const p = o.geometry.parameters, sh = Math.min(.12, yt), sk = new THREE.Mesh(new THREE.BoxGeometry(p.width + .02, sh, p.depth + .02), skirtMat);
-    sk.position.set(o.position.x, sh/2, o.position.z); sk.userData.walkOnly = true; sk.visible = opt.mode === 'walk'; archUp.add(sk);
+    sk.position.set(o.position.x, sh/2, o.position.z); sk.rotation.y = ang; sk.userData.walkOnly = true; sk.visible = opt.mode === 'walk'; archUp.add(sk);
   }
 }
 const edgeMat = new THREE.LineBasicMaterial({color:0x6f675b}), skirtMat = new THREE.MeshStandardMaterial({color:'#8b7f6e', roughness:.6});
 function shapeOf(poly, flip){ const s = new THREE.Shape(); poly.forEach(([x, y], i) => s[i ? 'lineTo' : 'moveTo'](wx(x), flip ? wz(y) : -wz(y))); return s; }
 
 function buildArch(){
-  clearGroup(archFloor); clearGroup(archUp); lampG.clear(); doors.length = 0; colliders = [];
+  clearGroup(archFloor); clearGroup(archUp); lampG.clear(); doors.length = 0; colliders = []; segColliders = [];
   const top = opt.cut;
   ROOMS.forEach(r => {
     const m = floorMat(state.rooms[r.id].mat), bay = r.counted === false;
@@ -3053,6 +3167,12 @@ function buildArch(){
     if (state.demolished.includes('w'+i)) return;
     wallBox(w, 0, w[4] === 'low' ? Math.min(1, top) : top);
     colliders.push([wx(w[0]), wz(w[1]), wx(w[2]), wz(w[3])]);
+  });
+  // 斜牆：以中點為中心的長方塊再繞 y 轉；碰撞用中線段 + 半厚
+  (LAYOUT.diag || []).forEach(d => {
+    const L = diagLen(d), cx = (d[0]+d[2])/2, cy = (d[1]+d[3])/2;
+    wallBox([cx - L/2, cy - d[4]/2, cx + L/2, cy + d[4]/2], 0, top, null, -Math.atan2(d[3]-d[1], d[2]-d[0]));
+    segColliders.push([wx(d[0]), wz(d[1]), wx(d[2]), wz(d[3]), M(d[4])/2]);
   });
   // 门洞、飘窗洞口上方过梁
   [...DOORS.map(d => [d.rect, d.head || 2.1]), ...SLIDES.map(s => [s.rect, s.head || (s.v ? 2.4 : 2.1)]), ...(LAYOUT.lintels || [])]
@@ -3345,6 +3465,10 @@ function setMode(m){
 }
 function blocked(x, z, r = .22){
   for (const [x0, z0, x1, z1] of colliders) if (x > x0 - r && x < x1 + r && z > z0 - r && z < z1 + r) return true;
+  for (const [ax, az, bx, bz, ht] of segColliders){
+    const t = clamp01(((x-ax)*(bx-ax) + (z-az)*(bz-az)) / ((bx-ax)**2 + (bz-az)**2 || 1));
+    if (Math.hypot(x - (ax + t*(bx-ax)), z - (az + t*(bz-az))) < r + ht) return true;
+  }
   for (const d of doors){
     const a = d.pivot.rotation.y, px = d.pivot.position.x, pz = d.pivot.position.z, ex = px + Math.cos(a)*.9, ez = pz - Math.sin(a)*.9;
     const t = clamp01(((x-px)*(ex-px) + (z-pz)*(ez-pz)) / ((ex-px)**2 + (ez-pz)**2));
